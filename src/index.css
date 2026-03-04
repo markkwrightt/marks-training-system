@@ -1,0 +1,282 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   MARK'S TRAINING SYSTEM — Design System
+   ======================================== */
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: thin;
+    scrollbar-color: #243049 transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: #243049;
+    border-radius: 999px;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    overscroll-behavior-y: contain;
+  }
+
+  /* Remove number input spinners */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
+  /* iOS date input fix */
+  input[type="date"] {
+    -webkit-appearance: none;
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+
+  /* --- Card System --- */
+  .card {
+    @apply bg-navy-800 border border-navy-600/30 rounded-2xl p-5 transition-all duration-200;
+  }
+
+  .card-elevated {
+    @apply card shadow-lg shadow-black/20;
+  }
+
+  .card-interactive {
+    @apply card cursor-pointer active:scale-[0.98] hover:border-accent-blue/30;
+  }
+
+  /* --- Glassmorphism --- */
+  .glass {
+    @apply bg-navy-800/80 backdrop-blur-xl border border-white/5;
+  }
+
+  /* --- Input System --- */
+  .input {
+    @apply w-full bg-navy-900 border border-navy-600/30 rounded-xl px-4 py-3 text-slate-100 placeholder:text-slate-600 outline-none transition-all duration-200 focus:border-accent-blue/50 focus:ring-2 focus:ring-accent-blue/20;
+  }
+
+  .input-lg {
+    @apply input text-lg font-bold text-center;
+  }
+
+  /* --- Button System --- */
+  .btn {
+    @apply px-4 py-3 rounded-xl font-bold text-sm transition-all duration-200 active:scale-[0.96] disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent-blue text-white shadow-lg shadow-accent-blue/25 hover:bg-blue-500 hover:shadow-accent-blue/40;
+  }
+
+  .btn-success {
+    @apply btn bg-accent-green text-white shadow-lg shadow-accent-green/25 hover:bg-emerald-400;
+  }
+
+  .btn-danger {
+    @apply btn bg-accent-red text-white shadow-lg shadow-accent-red/25;
+  }
+
+  .btn-ghost {
+    @apply btn bg-navy-700 text-slate-300 border border-navy-600/30 hover:bg-navy-600 hover:text-white;
+  }
+
+  .btn-icon {
+    @apply p-2 rounded-xl text-slate-500 hover:text-white hover:bg-navy-700 transition-all duration-200 active:scale-90;
+  }
+
+  /* --- Badge System --- */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider;
+  }
+
+  .badge-blue {
+    @apply badge bg-accent-blue/10 text-accent-blue border border-accent-blue/20;
+  }
+
+  .badge-green {
+    @apply badge bg-accent-green/10 text-accent-green border border-accent-green/20;
+  }
+
+  .badge-red {
+    @apply badge bg-accent-red/10 text-accent-red border border-accent-red/20;
+  }
+
+  .badge-amber {
+    @apply badge bg-accent-amber/10 text-accent-amber border border-accent-amber/20;
+  }
+
+  /* --- Tab Navigation --- */
+  .tab-bar {
+    @apply flex bg-navy-800 p-1 rounded-2xl gap-1;
+  }
+
+  .tab {
+    @apply flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-200 text-center text-slate-500;
+  }
+
+  .tab-active {
+    @apply tab bg-navy-700 text-accent-blue shadow-sm;
+  }
+
+  /* --- Section Labels --- */
+  .section-label {
+    @apply text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500;
+  }
+
+  /* --- Progress Bar --- */
+  .progress-bar {
+    @apply h-2 w-full rounded-full bg-navy-700 overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-700 ease-out;
+  }
+
+  /* --- Bottom Sheet --- */
+  .bottom-sheet-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fade-in;
+  }
+
+  .bottom-sheet {
+    @apply fixed inset-x-0 bottom-0 z-50 bg-navy-800 rounded-t-3xl shadow-2xl shadow-black/50 animate-slide-up max-h-[85vh] flex flex-col;
+  }
+
+  /* --- Stat Card --- */
+  .stat-value {
+    @apply text-2xl font-black text-white leading-none;
+  }
+
+  .stat-unit {
+    @apply text-xs font-medium text-slate-500 ml-1;
+  }
+
+  .stat-change-positive {
+    @apply text-xs font-bold text-accent-green;
+  }
+
+  .stat-change-negative {
+    @apply text-xs font-bold text-accent-red;
+  }
+
+  /* --- Floating Action Navigation --- */
+  .bottom-nav {
+    @apply fixed bottom-4 left-1/2 -translate-x-1/2 w-[96%] max-w-md glass rounded-3xl p-1.5 shadow-2xl shadow-black/40 z-50 border-navy-600/20;
+  }
+
+  .nav-item {
+    @apply flex flex-col items-center justify-center flex-1 h-14 rounded-2xl transition-all duration-300 text-slate-500;
+  }
+
+  .nav-item-active {
+    @apply nav-item bg-accent-blue text-white shadow-lg shadow-accent-blue/30 -translate-y-0.5;
+  }
+
+  /* --- Timer --- */
+  .timer-display {
+    @apply font-mono font-bold text-accent-red tracking-[0.2em] text-sm;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+
+  /* --- Myzone Zone Colors --- */
+  .zone-grey {
+    --zone-color: #6b7280;
+    --zone-glow: rgba(107, 114, 128, 0.3);
+  }
+
+  .zone-blue {
+    --zone-color: #3b82f6;
+    --zone-glow: rgba(59, 130, 246, 0.3);
+  }
+
+  .zone-green {
+    --zone-color: #10b981;
+    --zone-glow: rgba(16, 185, 129, 0.3);
+  }
+
+  .zone-yellow {
+    --zone-color: #f59e0b;
+    --zone-glow: rgba(245, 158, 11, 0.3);
+  }
+
+  .zone-red {
+    --zone-color: #f43f5e;
+    --zone-glow: rgba(244, 63, 94, 0.3);
+  }
+}
+
+/* --- Heartbeat Animation --- */
+@keyframes heartbeat {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  14% {
+    transform: scale(1.25);
+  }
+
+  28% {
+    transform: scale(1);
+  }
+
+  42% {
+    transform: scale(1.15);
+  }
+
+  56% {
+    transform: scale(1);
+  }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1s ease-in-out infinite;
+}
+
+@keyframes zoneGlow {
+  0% {
+    box-shadow: 0 0 8px var(--zone-glow, transparent), inset 0 0 8px var(--zone-glow, transparent);
+  }
+
+  100% {
+    box-shadow: 0 0 20px var(--zone-glow, transparent), inset 0 0 12px var(--zone-glow, transparent);
+  }
+}
+
+.animate-zone-glow {
+  animation: zoneGlow 1.5s ease-in-out infinite alternate;
+}

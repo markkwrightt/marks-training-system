@@ -1,0 +1,1723 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, AreaChart, Area, Cell
+} from 'recharts';
+import { 
+  Activity, Scale, Plus, TrendingUp, Dumbbell, Trash2, 
+  HeartPulse, Move, Image as ImageIcon, Play, Save, X, ListPlus, ChevronRight, 
+  Settings, Edit3, Trophy, User, Copy, CheckCircle2, Circle, Square, Download, Target,
+  Apple, Search, Flame, Droplet, Wheat, Database, AlertCircle, ClipboardList, CalendarDays, Radio, Upload
+} from 'lucide-react';
+
+// --- INITIAL DATA SEEDING ---
+const DEFAULT_EXERCISES = [
+  { id: 'e1', name: 'Weighted Step-ups', category: 'weight', unit: 'kg', imgUrl: 'https://images.unsplash.com/photo-1584735935682-2f2b69dff9d2?w=150&q=80', desc: 'Crucial for jungle inclines. Load a backpack.' },
+  { id: 'e2', name: 'Zone 2 Walk/Ruck', category: 'cardio', unit: 'min', imgUrl: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=150&q=80', desc: 'Maintain conversational pace to build aerobic base.' },
+  { id: 'e3', name: 'Plank', category: 'mobility', unit: 'sec', imgUrl: 'https://images.unsplash.com/photo-1566241440091-ec10de8db2e1?w=150&q=80', desc: 'Core stability for carrying heavy packs.' },
+  { id: 'e4', name: 'Goblet Squat', category: 'weight', unit: 'kg', imgUrl: '', desc: 'Builds quad strength and hip mobility.' }
+];
+
+const DEFAULT_ROUTINES = [
+  { id: 'r1', name: 'Jungle Leg Prep', exercises: ['e1', 'e4', 'e3'] },
+  { id: 'r2', name: 'Active Recovery', exercises: ['e2', 'e3'] }
+];
+
+const App = () => {
+  // --- STATE MANAGEMENT ---
+  const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Databases
+  const [exercises, setExercises] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_exercises');
+    return saved ? JSON.parse(saved) : DEFAULT_EXERCISES;
+  });
+  
+  const [routines, setRoutines] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_routines');
+    return saved ? JSON.parse(saved) : DEFAULT_ROUTINES;
+  });
+
+  const [logs, setLogs] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [metrics, setMetrics] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_metrics');
+    return saved ? JSON.parse(saved) : [
+      { date: '2024-02-01', weight: 118, fat: 35 }
+    ];
+  });
+
+  const [nutritionLogs, setNutritionLogs] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_nutrition');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // UI State
+  const [trainTabState, setTrainTabState] = useState('active'); 
+  const [selectedExerciseId, setSelectedExerciseId] = useState(null);
+  const [showAddExercise, setShowAddExercise] = useState(false);
+  const [showAddRoutine, setShowAddRoutine] = useState(false);
+  const [showDraftSelector, setShowDraftSelector] = useState(false);
+  const [expandedRoutineId, setExpandedRoutineId] = useState(null);
+  
+  // Graph Filters
+  const [dashFilter, setDashFilter] = useState('ALL');
+  const [bodyFilter, setBodyFilter] = useState('ALL');
+  const [nutriFilter, setNutriFilter] = useState('ALL');
+  const [libFilter, setLibFilter] = useState('ALL');
+
+  // Forms & Draft
+  const [exerciseForm, setExerciseForm] = useState({ name: '', category: 'weight', unit: 'kg', imgUrl: '', desc: '', notes: '' });
+  const [editingExerciseId, setEditingExerciseId] = useState(null);
+  const [newRoutineForm, setNewRoutineForm] = useState({ name: '', exercises: [] });
+  const [metricForm, setMetricForm] = useState({ 
+    weight: '', fat: '', muscleMass: '', bodyFatMass: '', bmi: '', bmr: '',
+    segLeanLArm: '', segLeanRArm: '', segLeanTrunk: '', segLeanLLeg: '', segLeanRLeg: '',
+    segFatLArm: '', segFatRArm: '', segFatTrunk: '', segFatLLeg: '', segFatRLeg: ''
+  });
+  const [bodyTabState, setBodyTabState] = useState('log');
+  const [nutritionTabState, setNutritionTabState] = useState('daily');
+  
+  // Date states
+  const [workoutDate, setWorkoutDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [nutritionDate, setNutritionDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const [dailyDraft, setDailyDraft] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_daily_draft');
+    return saved ? JSON.parse(saved).map(item => ({...item, timerRunning: false})) : []; 
+  });
+
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('marks_jr_settings');
+    return saved ? JSON.parse(saved) : {
+      weeklyTarget: 3,
+      mainName: 'Vietnam Jungle',
+      mainDate: '2027-05-01',
+      subName: 'Local Trial Hike',
+      subDate: '2026-08-01',
+      currentPhase: 'Base Building',
+      height: 187,
+      nutritionTargets: { calories: 2500, protein: 180, carbs: 220, fat: 80 },
+      myzoneConnected: false
+    };
+  });
+  const [showSettings, setShowSettings] = useState(false);
+
+  // --- PERSISTENCE ---
+  useEffect(() => localStorage.setItem('marks_jr_exercises', JSON.stringify(exercises)), [exercises]);
+  useEffect(() => localStorage.setItem('marks_jr_routines', JSON.stringify(routines)), [routines]);
+  useEffect(() => localStorage.setItem('marks_jr_logs', JSON.stringify(logs)), [logs]);
+  useEffect(() => localStorage.setItem('marks_jr_metrics', JSON.stringify(metrics)), [metrics]);
+  useEffect(() => localStorage.setItem('marks_jr_nutrition', JSON.stringify(nutritionLogs)), [nutritionLogs]);
+  useEffect(() => localStorage.setItem('marks_jr_settings', JSON.stringify(settings)), [settings]);
+  useEffect(() => localStorage.setItem('marks_jr_daily_draft', JSON.stringify(dailyDraft)), [dailyDraft]);
+
+  // --- INLINE TIMER LOGIC ---
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDailyDraft(draft => {
+        if (!draft.some(item => item.timerRunning)) return draft;
+        return draft.map(item => item.timerRunning ? { ...item, timerSeconds: (item.timerSeconds || 0) + 1 } : item);
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTimer = (seconds) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
+  // --- CALCULATIONS & UTILS ---
+  const filterByTime = (data, dateKey, filterValue) => {
+    if (filterValue === 'ALL') return data;
+    const past = new Date();
+    if (filterValue === '1M') past.setMonth(past.getMonth() - 1);
+    if (filterValue === '3M') past.setMonth(past.getMonth() - 3);
+    if (filterValue === '6M') past.setMonth(past.getMonth() - 6);
+    if (filterValue === '1Y') past.setFullYear(past.getFullYear() - 1);
+    return data.filter(d => new Date(d[dateKey]) >= past);
+  };
+
+  const getPhase = (targetDateStr) => {
+    const monthsLeft = (new Date(targetDateStr) - new Date()) / (1000 * 60 * 60 * 24 * 30);
+    if (monthsLeft > 12) return 'Base Building';
+    if (monthsLeft > 6) return 'Functional Strength';
+    if (monthsLeft > 0) return 'Specific Prep';
+    return 'Expedition Ready';
+  };
+
+  const daysUntil = (dateStr) => Math.max(0, Math.ceil((new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24)));
+  
+  const getBodyMassStats = (metric) => {
+    if (!metric) return { weight: 0, fatMass: 0, muscleMass: 0 };
+    const fatMass = metric.fat ? (metric.weight * (metric.fat / 100)) : 0;
+    const muscleMass = metric.fat ? (metric.weight - fatMass) : 0;
+    return { weight: metric.weight, fatMass, muscleMass };
+  };
+
+  const currentStats = getBodyMassStats(metrics[metrics.length - 1]);
+  const initialStats = getBodyMassStats(metrics[0]);
+  
+  const changes = {
+    weight: (currentStats.weight - initialStats.weight).toFixed(1),
+    fatMass: (currentStats.fatMass - initialStats.fatMass).toFixed(1),
+    muscleMass: (currentStats.muscleMass - initialStats.muscleMass).toFixed(1)
+  };
+
+  const currentWeekLogs = useMemo(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(today.setDate(diff));
+    monday.setHours(0,0,0,0);
+    return logs.filter(log => new Date(log.date) >= monday);
+  }, [logs]);
+  
+  const streak = new Set(currentWeekLogs.map(l => l.date)).size;
+
+  const totalVolumes = useMemo(() => {
+    let strength = 0, cardio = 0, mobility = 0, meps = 0;
+    logs.forEach(log => {
+      meps += (log.meps || 0);
+      const ex = exercises.find(e => e.id === log.exerciseId);
+      if (ex) {
+        if (ex.category === 'weight') strength++;
+        if (ex.category === 'cardio') cardio++;
+        if (ex.category === 'mobility') mobility++;
+      }
+    });
+    return { strength, cardio, mobility, meps };
+  }, [logs, exercises]);
+
+  const calculateDailyBurn = (dateStr) => {
+    const dayLogs = logs.filter(l => l.date === dateStr);
+    let burn = 0;
+    dayLogs.forEach(log => {
+       const ex = exercises.find(e => e.id === log.exerciseId);
+       if (!ex) return;
+       if (ex.category === 'cardio') burn += (log.value * 10);
+       else if (ex.category === 'weight') burn += 15;
+       else if (ex.category === 'mobility') burn += (log.value / 60) * 5;
+    });
+    return Math.round(burn);
+  };
+
+  const composedChartData = useMemo(() => {
+    const dataMap = {};
+    metrics.forEach(m => {
+      const stats = getBodyMassStats(m);
+      dataMap[m.date] = { date: m.date, weight: stats.weight, fatMass: stats.fatMass || null, muscleMass: stats.muscleMass || null, meps: 0 };
+    });
+    logs.forEach(l => {
+      if (!dataMap[l.date]) dataMap[l.date] = { date: l.date, meps: 0 };
+      dataMap[l.date].meps += (l.meps || 0);
+      const ex = exercises.find(e => e.id === l.exerciseId);
+      if (ex) {
+         const catKey = ex.category === 'weight' ? 'strengthCount' : ex.category + 'Count';
+         dataMap[l.date][catKey] = (dataMap[l.date][catKey] || 0) + 1;
+      }
+    });
+    return filterByTime(Object.values(dataMap).sort((a,b) => new Date(a.date) - new Date(b.date)), 'date', dashFilter);
+  }, [metrics, logs, exercises, dashFilter]);
+
+  // PRO TRAINER ENGINE: GHOST SETS
+  const getPreviousLog = (exId) => {
+    const pastLogs = logs.filter(l => l.exerciseId === exId).sort((a,b) => new Date(b.date) - new Date(a.date));
+    return pastLogs.length > 0 ? pastLogs[0] : null;
+  };
+
+  // --- HANDLERS ---
+  const handleSaveExercise = (e) => {
+    e.preventDefault();
+    if (!exerciseForm.name) return;
+    if (editingExerciseId) {
+      setExercises(exercises.map(ex => ex.id === editingExerciseId ? { ...ex, ...exerciseForm } : ex));
+    } else {
+      setExercises([...exercises, { id: 'e' + Date.now(), ...exerciseForm }]);
+    }
+    setExerciseForm({ name: '', category: 'weight', unit: 'kg', imgUrl: '', desc: '', notes: '' });
+    setShowAddExercise(false);
+    setEditingExerciseId(null);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setExerciseForm({ ...exerciseForm, imgUrl: reader.result });
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const deleteExercise = (id) => {
+    if(window.confirm("Are you sure? This will remove the exercise from your library (past logs will remain safe).")) {
+      setExercises(exercises.filter(ex => ex.id !== id));
+      setSelectedExerciseId(null);
+      setShowAddExercise(false);
+      setEditingExerciseId(null);
+    }
+  };
+
+  const deleteLog = (id) => {
+    if(window.confirm("Delete this specific set?")) {
+      setLogs(logs.filter(l => l.id !== id));
+    }
+  };
+
+  const deleteMetric = (dateStr) => {
+    if(window.confirm("Delete the body scan for this date?")) {
+      setMetrics(metrics.filter(m => m.date !== dateStr));
+    }
+  };
+
+  const handleSaveRoutine = (e) => {
+    e.preventDefault();
+    if (!newRoutineForm.name || newRoutineForm.exercises.length === 0) return;
+    setRoutines([...routines, { id: 'r' + Date.now(), ...newRoutineForm }]);
+    setNewRoutineForm({ name: '', exercises: [] });
+    setShowAddRoutine(false);
+  };
+
+  const deleteRoutine = (e, id) => {
+    e.stopPropagation();
+    if(window.confirm("Delete this routine entirely?")) {
+      setRoutines(routines.filter(r => r.id !== id));
+    }
+  };
+
+  const toggleExerciseForRoutine = (exId) => {
+    setNewRoutineForm(prev => ({
+      ...prev,
+      exercises: prev.exercises.includes(exId) 
+        ? prev.exercises.filter(id => id !== exId)
+        : [...prev.exercises, exId]
+    }));
+  };
+
+  const loadRoutineToDraft = (routine) => {
+    const newItems = routine.exercises.map(exId => ({
+      tempId: Math.random().toString(36).substr(2, 9),
+      exerciseId: exId,
+      value: '', reps: '', meps: '', completed: false, timerRunning: false, timerSeconds: 0
+    }));
+    setDailyDraft(prev => [...prev, ...newItems]);
+    setTrainTabState('active');
+    setExpandedRoutineId(null);
+  };
+
+  const addExerciseToDraft = (exId) => {
+    setDailyDraft(prev => [...prev, {
+      tempId: Math.random().toString(36).substr(2, 9),
+      exerciseId: exId,
+      value: '', reps: '', meps: '', completed: false, timerRunning: false, timerSeconds: 0
+    }]);
+    setShowDraftSelector(false);
+  };
+
+  const duplicateDraftItem = (item) => {
+    setDailyDraft(prev => [...prev, { ...item, tempId: Math.random().toString(36).substr(2, 9), completed: false, timerRunning: false, timerSeconds: 0 }]);
+  };
+
+  const updateDraftItem = (tempId, updates) => {
+      setDailyDraft(prevDraft => prevDraft.map(item => item.tempId === tempId ? { ...item, ...updates } : item));
+  };
+
+  const toggleInlineTimer = (item, ex) => {
+    if (item.timerRunning) {
+      // STOP TIMER -> Auto-complete
+      const isTimeBased = ex.unit === 'sec' || ex.unit === 'min';
+      let autoValue = item.value;
+      if (isTimeBased && item.timerSeconds > 0) {
+        autoValue = ex.unit === 'sec' ? item.timerSeconds : (item.timerSeconds / 60).toFixed(1);
+      }
+      updateDraftItem(item.tempId, { timerRunning: false, completed: true, value: autoValue });
+    } else {
+      // START TIMER
+      updateDraftItem(item.tempId, { timerRunning: true, completed: false });
+    }
+  };
+
+  const toggleManualCompletion = (item) => {
+    updateDraftItem(item.tempId, { completed: !item.completed, timerRunning: false });
+  };
+
+  const removeDraftItem = (tempId) => setDailyDraft(prev => prev.filter(item => item.tempId !== tempId));
+
+  const saveDailyWorkout = () => {
+    const completedLogs = dailyDraft.filter(item => item.completed && item.value);
+    if (completedLogs.length === 0) {
+      alert("Please check off (complete) at least one set with a value before saving.");
+      return;
+    }
+
+    const newLogs = completedLogs.map(item => {
+      const ex = exercises.find(e => e.id === item.exerciseId);
+      
+      // Auto-calculate MEPs if connected to Myzone and user left it blank
+      let mepsScore = parseInt(item.meps);
+      if (isNaN(mepsScore)) mepsScore = 0;
+      
+      if (mepsScore === 0 && settings.myzoneConnected && ex) {
+        const val = parseFloat(item.value) || 0;
+        if (ex.category === 'cardio') mepsScore = Math.round(val * (ex.unit==='min'? 4 : 4/60));
+        else if (ex.category === 'weight') mepsScore = 2;
+        else if (ex.category === 'mobility') mepsScore = Math.round(val * (ex.unit==='min'? 1 : 1/60)) || 1;
+      }
+
+      return {
+        id: Date.now() + Math.random(),
+        date: workoutDate,
+        exerciseId: item.exerciseId,
+        value: parseFloat(item.value) || 0,
+        reps: item.reps || '',
+        meps: mepsScore
+      };
+    });
+
+    setLogs([...newLogs, ...logs]);
+    setDailyDraft(prev => prev.filter(item => !item.completed));
+  };
+
+  const addMetric = (e) => {
+    e.preventDefault();
+    if (!metricForm.weight) return;
+    const parse = (val) => val ? parseFloat(val) : null;
+    setMetrics([...metrics, {
+      date: new Date().toISOString().split('T')[0],
+      weight: parse(metricForm.weight), fat: parse(metricForm.fat), muscleMass: parse(metricForm.muscleMass),
+      bodyFatMass: parse(metricForm.bodyFatMass), bmi: parse(metricForm.bmi), bmr: parse(metricForm.bmr),
+      segLeanLArm: parse(metricForm.segLeanLArm), segLeanRArm: parse(metricForm.segLeanRArm),
+      segLeanTrunk: parse(metricForm.segLeanTrunk), segLeanLLeg: parse(metricForm.segLeanLLeg),
+      segLeanRLeg: parse(metricForm.segLeanRLeg), segFatLArm: parse(metricForm.segFatLArm),
+      segFatRArm: parse(metricForm.segFatRArm), segFatTrunk: parse(metricForm.segFatTrunk),
+      segFatLLeg: parse(metricForm.segFatLLeg), segFatRLeg: parse(metricForm.segFatRLeg),
+    }]);
+    setMetricForm({ 
+      weight: '', fat: '', muscleMass: '', bodyFatMass: '', bmi: '', bmr: '',
+      segLeanLArm: '', segLeanRArm: '', segLeanTrunk: '', segLeanLLeg: '', segLeanRLeg: '',
+      segFatLArm: '', segFatRArm: '', segFatTrunk: '', segFatLLeg: '', segFatRLeg: ''
+    });
+    setBodyTabState('history');
+  };
+
+  const exportData = () => {
+    const data = { settings, exercises, routines, logs, metrics, nutritionLogs };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `FitnessTracker_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importData = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        if (data.settings) setSettings(data.settings);
+        if (data.exercises) setExercises(data.exercises);
+        if (data.routines) setRoutines(data.routines);
+        if (data.logs) setLogs(data.logs);
+        if (data.metrics) setMetrics(data.metrics);
+        if (data.nutritionLogs) setNutritionLogs(data.nutritionLogs);
+        alert("Data successfully imported and restored!");
+        setShowSettings(false);
+      } catch (err) {
+        alert("Error: Invalid backup file format.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; // reset input
+  };
+
+  const getCategoryIcon = (cat) => {
+    if (cat === 'weight') return <Dumbbell className="w-5 h-5" />;
+    if (cat === 'cardio') return <HeartPulse className="w-5 h-5" />;
+    return <Move className="w-5 h-5" />;
+  };
+
+  const getExerciseData = (exId) => {
+    const exLogs = logs.filter(l => l.exerciseId === exId).sort((a,b) => new Date(a.date) - new Date(b.date));
+    const grouped = exLogs.reduce((acc, log) => {
+      const ex = exercises.find(e => e.id === exId);
+      if (!acc[log.date]) {
+        acc[log.date] = { ...log };
+      } else {
+        if (ex?.category === 'cardio') {
+          acc[log.date].value += log.value; 
+        } else {
+          if (log.value > acc[log.date].value) acc[log.date] = { ...log }; 
+        }
+      }
+      return acc;
+    }, {});
+    return filterByTime(Object.values(grouped), 'date', libFilter);
+  };
+
+  const TimeFilterSelect = ({ value, onChange }) => (
+    <select value={value} onChange={e => onChange(e.target.value)} className="bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 p-1.5 rounded-lg border-none outline-none cursor-pointer">
+      <option value="1M">1 Month</option>
+      <option value="3M">3 Months</option>
+      <option value="6M">6 Months</option>
+      <option value="1Y">1 Year</option>
+      <option value="ALL">All Time</option>
+    </select>
+  );
+
+  // --- SUB-COMPONENTS ---
+  const Dashboard = () => (
+    <div className="space-y-6 pb-24">
+      {showSettings && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-100 dark:border-slate-700 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg">Settings & Backup</h3>
+              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-rose-500"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl flex items-center justify-between border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <Radio className={`w-6 h-6 ${settings.myzoneConnected ? 'text-rose-500' : 'text-slate-400'}`} />
+                  <div>
+                    <h4 className="font-bold text-sm">Myzone Integration</h4>
+                    <p className="text-[10px] text-slate-500">Track effort points (MEPs)</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSettings({...settings, myzoneConnected: !settings.myzoneConnected})}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${settings.myzoneConnected ? 'bg-rose-500' : 'bg-slate-300 dark:bg-slate-700'}`}
+                >
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${settings.myzoneConnected ? 'left-7' : 'left-1'}`}></div>
+                </button>
+              </div>
+
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <label className="text-xs font-bold text-slate-500 uppercase">Weekly Target (Days)</label>
+                <input type="number" value={settings.weeklyTarget} onChange={e => setSettings({...settings, weeklyTarget: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 mt-1" />
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <label className="text-xs font-bold text-emerald-500 uppercase">Main Target</label>
+                <input type="text" value={settings.mainName} onChange={e => setSettings({...settings, mainName: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 mt-1 mb-2" placeholder="Target Name" />
+                <input type="date" value={settings.mainDate} onChange={e => setSettings({...settings, mainDate: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 mb-2" />
+                <select value={settings.currentPhase || 'Base Building'} onChange={e => setSettings({...settings, currentPhase: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900">
+                  <option value="Base Building">Base Building</option>
+                  <option value="Functional Strength">Functional Strength</option>
+                  <option value="Specific Prep">Specific Prep</option>
+                  <option value="Expedition Ready">Expedition Ready</option>
+                </select>
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <label className="text-xs font-bold text-blue-500 uppercase">Sub Target</label>
+                <input type="text" value={settings.subName || ''} onChange={e => setSettings({...settings, subName: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 mt-1 mb-2" placeholder="Sub Target Name (e.g. Local Hike)" />
+                <input type="date" value={settings.subDate || ''} onChange={e => setSettings({...settings, subDate: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900" />
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <label className="text-xs font-bold text-slate-500 uppercase">Profile Settings</label>
+                <div className="flex items-center gap-2 mt-1 mb-2">
+                  <input type="number" placeholder="Height (cm)" value={settings.height || ''} onChange={e => setSettings({...settings, height: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900" />
+                  <span className="text-sm font-bold text-slate-400">cm</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                <label className="text-xs font-bold text-rose-500 uppercase">Nutrition Targets</label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Calories</span>
+                    <input type="number" value={settings.nutritionTargets?.calories || 2500} onChange={e => setSettings({...settings, nutritionTargets: {...settings.nutritionTargets, calories: Number(e.target.value)}})} className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-900 text-sm font-bold text-rose-500" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Protein (g)</span>
+                    <input type="number" value={settings.nutritionTargets?.protein || 180} onChange={e => setSettings({...settings, nutritionTargets: {...settings.nutritionTargets, protein: Number(e.target.value)}})} className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-900 text-sm font-bold text-emerald-500" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Carbs (g)</span>
+                    <input type="number" value={settings.nutritionTargets?.carbs || 250} onChange={e => setSettings({...settings, nutritionTargets: {...settings.nutritionTargets, carbs: Number(e.target.value)}})} className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-900 text-sm font-bold text-blue-500" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Fat (g)</span>
+                    <input type="number" value={settings.nutritionTargets?.fat || 80} onChange={e => setSettings({...settings, nutritionTargets: {...settings.nutritionTargets, fat: Number(e.target.value)}})} className="w-full p-2 rounded-lg bg-slate-50 dark:bg-slate-900 text-sm font-bold text-amber-500" />
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-700 flex flex-col gap-3">
+                <button onClick={exportData} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 p-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors border border-slate-200 dark:border-slate-600">
+                  <Download className="w-4 h-4" /> Backup Data (JSON)
+                </button>
+                <label className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 p-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors border border-slate-200 dark:border-slate-600 cursor-pointer">
+                  <Upload className="w-4 h-4" /> Restore Backup
+                  <input type="file" accept=".json" className="hidden" onChange={importData} />
+                </label>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="w-full bg-emerald-600 text-white p-3 rounded-xl font-bold mt-2 shadow-lg">Close Settings</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Target Cards */}
+      <div className="grid grid-cols-1 gap-4 relative">
+        <button onClick={() => setShowSettings(true)} className="absolute right-4 top-4 z-20 bg-black/20 p-2 rounded-full text-white hover:bg-black/40 transition">
+          <Settings className="w-5 h-5" />
+        </button>
+        
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <Target className="absolute -right-4 -top-4 w-40 h-40 opacity-10 rotate-12" />
+          <div className="relative z-10">
+            <p className="text-emerald-100 text-xs font-bold uppercase tracking-widest mb-1">Main: {settings.mainName}</p>
+            <h2 className="text-5xl font-black">{daysUntil(settings.mainDate)} <span className="text-xl font-medium opacity-80">Days</span></h2>
+            <div className="mt-4 pt-4 border-t border-white/20">
+              <p className="text-xs text-emerald-200 uppercase">Current Phase</p>
+              <p className="text-lg font-bold">{settings.currentPhase || getPhase(settings.mainDate)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sub Target Card - Always shows so user knows they can add one */}
+        <div 
+          onClick={() => setShowSettings(true)}
+          className={`rounded-2xl p-4 text-white shadow-md relative overflow-hidden cursor-pointer transition-transform active:scale-95 ${settings.subName ? 'bg-gradient-to-br from-blue-600 to-indigo-900' : 'bg-slate-200 dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700'}`}
+        >
+          <div className="relative z-10 flex justify-between items-center">
+            <div>
+              <p className={`${settings.subName ? 'text-blue-200' : 'text-slate-500'} text-xs font-bold uppercase tracking-widest`}>
+                {settings.subName ? `Prep: ${settings.subName}` : 'Set Next Milestone'}
+              </p>
+              <p className={`text-lg font-bold ${settings.subName ? '' : 'text-slate-400'}`}>
+                {settings.subName ? getPhase(settings.subDate) : 'Click to add sub-target'}
+              </p>
+            </div>
+            {settings.subName && (
+              <div className="text-right">
+                <h3 className="text-3xl font-black">{daysUntil(settings.subDate)} <span className="text-sm font-medium opacity-80">Days</span></h3>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2 text-orange-500">
+              <Activity className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Weekly Pace</span>
+            </div>
+            <p className="text-3xl font-black text-slate-800 dark:text-white">{streak}<span className="text-lg text-slate-400 font-medium">/{settings.weeklyTarget} days</span></p>
+            <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Resets every Monday</p>
+          </div>
+          {settings.myzoneConnected && (
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 text-rose-500 mb-1">
+                <Radio className="w-4 h-4" />
+                <span className="text-[10px] font-bold uppercase tracking-wider">Weekly MEPs</span>
+              </div>
+              <p className="text-xl font-black text-rose-500">{currentWeekLogs.reduce((acc, l) => acc + (l.meps || 0), 0)}</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-between">
+          <div>
+             <div className="flex items-center gap-2 mb-2 text-blue-500">
+              <Activity className="w-5 h-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Overall</span>
+             </div>
+             <p className="text-sm text-slate-500 font-medium mb-3">Training Days: <span className="text-slate-800 dark:text-white font-bold">{new Set(logs.map(l=>l.date)).size}</span></p>
+             <div className={`grid ${settings.myzoneConnected ? 'grid-cols-4' : 'grid-cols-3'} gap-1 border-t border-slate-50 dark:border-slate-700 pt-3`}>
+               <div>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase">Str</p>
+                 <p className="text-sm font-black text-emerald-500 leading-none">{totalVolumes.strength}</p>
+               </div>
+               <div>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase">Car</p>
+                 <p className="text-sm font-black text-orange-500 leading-none">{totalVolumes.cardio}</p>
+               </div>
+               <div>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase">Mob</p>
+                 <p className="text-sm font-black text-purple-500 leading-none">{totalVolumes.mobility}</p>
+               </div>
+               {settings.myzoneConnected && (
+                 <div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase">MEPs</p>
+                   <p className="text-sm font-black text-rose-500 leading-none">{totalVolumes.meps}</p>
+                 </div>
+               )}
+             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Body Composition Card */}
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+        <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+          <Scale className="w-5 h-5 text-blue-500" /> Body Composition
+        </h3>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Weight</p>
+            <p className="text-xl font-black">{currentStats.weight}kg</p>
+            <p className={`text-xs font-bold mt-1 ${changes.weight <= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{changes.weight > 0 ? '+' : ''}{changes.weight}</p>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Muscle Mass</p>
+            <p className="text-xl font-black text-emerald-600">{currentStats.muscleMass > 0 ? currentStats.muscleMass.toFixed(1) : '--'}kg</p>
+            <p className={`text-xs font-bold mt-1 ${changes.muscleMass >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{changes.muscleMass > 0 ? '+' : ''}{currentStats.muscleMass > 0 ? changes.muscleMass : '-'}</p>
+          </div>
+          <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl">
+            <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Fat Mass</p>
+            <p className="text-xl font-black text-rose-500">{currentStats.fatMass > 0 ? currentStats.fatMass.toFixed(1) : '--'}kg</p>
+            <p className={`text-xs font-bold mt-1 ${changes.fatMass <= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{changes.fatMass > 0 ? '+' : ''}{currentStats.fatMass > 0 ? changes.fatMass : '-'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-emerald-500" /> Overall Progress
+          </h3>
+          <TimeFilterSelect value={dashFilter} onChange={setDashFilter} />
+        </div>
+        <div className="h-72 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={composedChartData} margin={{ top: 5, right: -15, left: -25, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="date" tick={{fontSize: 10}} tickMargin={10} />
+              <YAxis yAxisId="left" domain={['dataMin - 5', 'dataMax + 5']} tick={{fontSize: 10}} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="right" orientation="right" tick={{fontSize: 10}} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} />
+              <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+              
+              <Bar yAxisId="right" dataKey="strengthCount" name="Strength Vol." stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
+              <Bar yAxisId="right" dataKey="cardioCount" name="Cardio Vol." stackId="a" fill="#f97316" />
+              <Bar yAxisId="right" dataKey="mobilityCount" name="Mobility Vol." stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+              
+              <Line yAxisId="left" type="monotone" dataKey="weight" name="Weight (kg)" stroke="#3b82f6" strokeWidth={3} dot={{r:3}} connectNulls />
+              <Line yAxisId="left" type="monotone" dataKey="muscleMass" name="Muscle" stroke="#10b981" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls />
+              <Line yAxisId="left" type="monotone" dataKey="fatMass" name="Fat" stroke="#f43f5e" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls />
+              
+              {settings.myzoneConnected && (
+                 <Line yAxisId="right" type="monotone" dataKey="meps" name="MEPs" stroke="#fb7185" strokeWidth={3} dot={false} />
+              )}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+
+  const TrainTab = () => {
+    const weightEx = exercises.filter(e => e.category === 'weight');
+    const cardioEx = exercises.filter(e => e.category === 'cardio');
+    const mobEx = exercises.filter(e => e.category === 'mobility');
+
+    return (
+      <div className="space-y-6 pb-24 relative">
+        {/* Train Sub-Navigation */}
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl mb-4">
+          <button onClick={() => setTrainTabState('active')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${trainTabState === 'active' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>Session</button>
+          <button onClick={() => setTrainTabState('routines')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${trainTabState === 'routines' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>Routines</button>
+          <button onClick={() => { setTrainTabState('library'); setSelectedExerciseId(null); }} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${trainTabState === 'library' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>Library</button>
+        </div>
+
+        {trainTabState === 'active' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-black text-slate-800 dark:text-white">Active Session</h2>
+              <input 
+                type="date" 
+                value={workoutDate} 
+                onChange={(e) => setWorkoutDate(e.target.value)} 
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            
+            {dailyDraft.length === 0 ? (
+              <div className="bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 p-8 rounded-3xl text-center">
+                <Dumbbell className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500 font-bold mb-1">No exercises loaded.</p>
+                <p className="text-sm text-slate-400 mb-6">Load a routine or add an exercise.</p>
+                <button onClick={() => setShowDraftSelector(true)} className="bg-white dark:bg-slate-800 text-slate-700 dark:text-white shadow-sm border border-slate-100 dark:border-slate-700 px-6 py-3 rounded-xl font-bold hover:border-emerald-500 transition-colors">
+                  + Add Exercise
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {dailyDraft.map((item, index) => {
+                  const ex = exercises.find(e => e.id === item.exerciseId);
+                  if (!ex) return null;
+
+                  // Ghost Set Logic lookup
+                  const prevLog = getPreviousLog(ex.id);
+                  
+                  return (
+                    <div key={item.tempId} className={`bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border-2 transition-all ${item.completed ? 'border-emerald-500/50 bg-emerald-50/30 dark:bg-emerald-900/10' : item.timerRunning ? 'border-rose-500/50 bg-rose-50/20 shadow-rose-500/10' : 'border-slate-100 dark:border-slate-700'}`}>
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-start gap-2">
+                          <button onClick={() => toggleInlineTimer(item, ex)} className="mr-1 active:scale-90 transition-transform mt-0.5">
+                            {item.completed ? <CheckCircle2 className="w-8 h-8 text-emerald-500" /> : item.timerRunning ? <Square className="w-8 h-8 text-rose-500 fill-current animate-pulse" /> : <Play className="w-8 h-8 text-emerald-500 fill-current" />}
+                          </button>
+                          <div>
+                             <h4 className={`font-bold text-lg leading-tight ${item.completed ? 'text-slate-400 line-through' : 'text-slate-800 dark:text-white'}`}>{ex.name}</h4>
+                             {item.timerRunning ? (
+                               <span className="text-rose-500 font-mono font-black text-sm tracking-widest">{formatTimer(item.timerSeconds)}</span>
+                             ) : (
+                               prevLog && !item.completed && (
+                                 <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 font-bold tracking-wider mt-0.5 flex items-center gap-1">
+                                   <TrendingUp className="w-3 h-3" /> Last: {prevLog.value}{ex.unit} {prevLog.reps ? `× ${prevLog.reps}` : ''}
+                                 </p>
+                               )
+                             )}
+                          </div>
+                        </div>
+                        <div className="flex gap-1 items-start">
+                          <button onClick={() => toggleManualCompletion(item)} className="text-slate-400 hover:text-emerald-500 p-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg" title="Toggle Manual Completion"><CheckCircle2 className="w-4 h-4"/></button>
+                          <button onClick={() => duplicateDraftItem(item)} className="text-slate-400 hover:text-blue-500 p-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg"><Copy className="w-4 h-4" /></button>
+                          <button onClick={() => removeDraftItem(item.tempId)} className="text-slate-400 hover:text-rose-500 p-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                      
+                      <div className={`grid ${settings.myzoneConnected ? 'grid-cols-3' : 'grid-cols-2'} gap-2 transition-opacity ${item.completed ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <div className="relative">
+                          <input type="number" value={item.value || ''} onChange={e => updateDraftItem(item.tempId, {value: e.target.value})} placeholder={prevLog ? prevLog.value.toString() : "0"} className="w-full bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border-none focus:ring-2 ring-emerald-500 outline-none text-lg font-black text-center pr-6 placeholder:text-slate-300 dark:placeholder:text-slate-600" />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 uppercase">{ex.unit}</span>
+                        </div>
+                        <input type="text" value={item.reps || ''} onChange={e => updateDraftItem(item.tempId, {reps: e.target.value})} placeholder={prevLog && prevLog.reps ? prevLog.reps.toString() : "Reps"} className="w-full bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border-none focus:ring-2 ring-emerald-500 outline-none text-sm font-bold text-center placeholder:text-slate-300 dark:placeholder:text-slate-600" />
+                        
+                        {settings.myzoneConnected && (
+                          <input type="number" value={item.meps || ''} onChange={e => updateDraftItem(item.tempId, {meps: e.target.value})} placeholder="MEPs" className="w-full bg-rose-50 dark:bg-rose-900/10 p-3 rounded-xl border-none focus:ring-2 ring-rose-500 outline-none text-sm font-bold text-center text-rose-600 placeholder:text-rose-300 dark:placeholder:text-rose-800" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <button onClick={() => setShowDraftSelector(true)} className="bg-white dark:bg-slate-800 text-slate-700 dark:text-white shadow-sm border border-slate-100 dark:border-slate-700 p-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:border-emerald-500 transition-colors">
+                    <Plus className="w-5 h-5" /> Add Set
+                  </button>
+                  <button onClick={saveDailyWorkout} className="bg-emerald-600 text-white p-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 hover:bg-emerald-700 transition-colors">
+                    <Save className="w-5 h-5" /> Log Completed
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {trainTabState === 'routines' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-black text-slate-800 dark:text-white">Your Routines</h2>
+              <button onClick={() => setShowAddRoutine(true)} className="text-emerald-600 bg-emerald-100 p-2 rounded-xl hover:bg-emerald-200 transition">
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+
+            {showAddRoutine && (
+              <form onSubmit={handleSaveRoutine} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 mb-6 space-y-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-lg">Create Routine</h3>
+                  <button type="button" onClick={() => setShowAddRoutine(false)} className="text-slate-400 hover:text-rose-500 transition-colors"><X className="w-5 h-5"/></button>
+                </div>
+                <input placeholder="Routine Name" required value={newRoutineForm.name} onChange={e => setNewRoutineForm({...newRoutineForm, name: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-emerald-500 font-medium" />
+                <div>
+                  <p className="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wide">Select Exercises:</p>
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+                    {exercises.map(ex => (
+                      <label key={ex.id} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <input type="checkbox" checked={newRoutineForm.exercises.includes(ex.id)} onChange={() => toggleExerciseForRoutine(ex.id)} className="w-5 h-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                        <span className="flex-1 font-bold text-slate-700 dark:text-slate-300">{ex.name}</span>
+                        <span className="text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 p-1.5 rounded-lg">{getCategoryIcon(ex.category)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <button type="submit" disabled={newRoutineForm.exercises.length === 0} className="w-full bg-slate-900 dark:bg-emerald-600 text-white p-4 rounded-2xl font-black mt-4 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">Save Routine</button>
+              </form>
+            )}
+
+            <div className="space-y-3">
+              {routines.map(routine => (
+                <div key={routine.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer transition-all" onClick={() => setExpandedRoutineId(expandedRoutineId === routine.id ? null : routine.id)}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-bold">{routine.name}</h3>
+                      <p className="text-sm text-slate-500">{routine.exercises.length} exercises</p>
+                    </div>
+                    <ChevronRight className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${expandedRoutineId === routine.id ? 'rotate-90' : ''}`} />
+                  </div>
+                  
+                  {expandedRoutineId === routine.id && (
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                      <div className="flex flex-col gap-2 mb-4">
+                        {routine.exercises.map(exId => {
+                          const ex = exercises.find(e => e.id === exId);
+                          return ex ? (
+                            <div key={exId} className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 p-3 rounded-xl font-medium">
+                              <span className="text-emerald-500">{getCategoryIcon(ex.category)}</span>
+                              {ex.name}
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); loadRoutineToDraft(routine); }} className="flex-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 p-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-emerald-200 dark:hover:bg-emerald-800 transition-colors">
+                          <Play className="w-5 h-5 fill-current" /> Load into Workout
+                        </button>
+                        <button onClick={(e) => deleteRoutine(e, routine.id)} className="p-3 bg-rose-100 dark:bg-rose-900/40 text-rose-600 rounded-xl hover:bg-rose-200 dark:hover:bg-rose-800 transition-colors">
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {trainTabState === 'library' && (
+          <div>
+            {!selectedExerciseId ? (
+              <>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-black text-slate-800 dark:text-white">Exercise Library</h2>
+                  <button onClick={() => { setExerciseForm({ name: '', category: 'weight', unit: 'kg', imgUrl: '', desc: '', notes: '' }); setEditingExerciseId(null); setShowAddExercise(true); }} className="bg-emerald-100 text-emerald-700 p-2 rounded-xl"><Plus className="w-5 h-5" /></button>
+                </div>
+
+                {showAddExercise && (
+                  <form onSubmit={handleSaveExercise} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700 mb-6 space-y-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold">{editingExerciseId ? 'Edit Exercise' : 'Add Custom Exercise'}</h3>
+                      <button type="button" onClick={() => { setShowAddExercise(false); setEditingExerciseId(null); }} className="text-slate-400"><X className="w-5 h-5"/></button>
+                    </div>
+                    <input placeholder="Exercise Name" required value={exerciseForm.name} onChange={e => setExerciseForm({...exerciseForm, name: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 font-bold" />
+                    <input placeholder="Subtitle / Short Description" value={exerciseForm.desc || ''} onChange={e => setExerciseForm({...exerciseForm, desc: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-sm" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <select value={exerciseForm.category} onChange={e => setExerciseForm({...exerciseForm, category: e.target.value})} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900"><option value="weight">Strength</option><option value="cardio">Cardio</option><option value="mobility">Mobility</option></select>
+                      <input placeholder="Unit (e.g. kg, min)" required value={exerciseForm.unit} onChange={e => setExerciseForm({...exerciseForm, unit: e.target.value})} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900" />
+                    </div>
+                    <textarea placeholder="Notes / Form Cues (Optional)" value={exerciseForm.notes || ''} onChange={e => setExerciseForm({...exerciseForm, notes: e.target.value})} className="w-full p-3 rounded-xl bg-slate-50 dark:bg-slate-900 text-sm min-h-[80px] resize-none" />
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase px-1">Upload Image (Optional)</label>
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-900 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 cursor-pointer text-slate-500" />
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      {editingExerciseId && <button type="button" onClick={() => deleteExercise(editingExerciseId)} className="p-3 rounded-xl bg-rose-100 text-rose-600 font-bold hover:bg-rose-200 transition-colors"><Trash2 className="w-5 h-5" /></button>}
+                      <button type="submit" className="flex-1 bg-slate-900 dark:bg-emerald-600 text-white p-3 rounded-xl font-bold">{editingExerciseId ? 'Update Exercise' : 'Save Exercise'}</button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="space-y-2">
+                  {weightEx.length > 0 && <div className="mb-6"><h3 className={`text-xs font-bold uppercase tracking-wider mb-3 px-2 text-emerald-600`}>Strength ({weightEx.length})</h3><div className="space-y-3">{weightEx.map(ex => <div key={ex.id} onClick={() => setSelectedExerciseId(ex.id)} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4 cursor-pointer hover:border-emerald-500 transition-colors group">{ex.imgUrl ? <img src={ex.imgUrl} alt="" className="w-16 h-16 rounded-2xl object-cover" /> : <div className="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400"><ImageIcon className="w-6 h-6" /></div>}<div className="flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-emerald-500">{getCategoryIcon(ex.category)}</span><h3 className="font-bold text-lg leading-tight">{ex.name}</h3></div><p className="text-xs text-slate-500 line-clamp-1">{ex.desc}</p></div><ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 transition-colors" /></div>)}</div></div>}
+                  {cardioEx.length > 0 && <div className="mb-6"><h3 className={`text-xs font-bold uppercase tracking-wider mb-3 px-2 text-orange-500`}>Cardio ({cardioEx.length})</h3><div className="space-y-3">{cardioEx.map(ex => <div key={ex.id} onClick={() => setSelectedExerciseId(ex.id)} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4 cursor-pointer hover:border-emerald-500 transition-colors group">{ex.imgUrl ? <img src={ex.imgUrl} alt="" className="w-16 h-16 rounded-2xl object-cover" /> : <div className="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400"><ImageIcon className="w-6 h-6" /></div>}<div className="flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-emerald-500">{getCategoryIcon(ex.category)}</span><h3 className="font-bold text-lg leading-tight">{ex.name}</h3></div><p className="text-xs text-slate-500 line-clamp-1">{ex.desc}</p></div><ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 transition-colors" /></div>)}</div></div>}
+                  {mobEx.length > 0 && <div className="mb-6"><h3 className={`text-xs font-bold uppercase tracking-wider mb-3 px-2 text-purple-500`}>Mobility ({mobEx.length})</h3><div className="space-y-3">{mobEx.map(ex => <div key={ex.id} onClick={() => setSelectedExerciseId(ex.id)} className="bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center gap-4 cursor-pointer hover:border-emerald-500 transition-colors group">{ex.imgUrl ? <img src={ex.imgUrl} alt="" className="w-16 h-16 rounded-2xl object-cover" /> : <div className="w-16 h-16 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400"><ImageIcon className="w-6 h-6" /></div>}<div className="flex-1"><div className="flex items-center gap-2 mb-1"><span className="text-emerald-500">{getCategoryIcon(ex.category)}</span><h3 className="font-bold text-lg leading-tight">{ex.name}</h3></div><p className="text-xs text-slate-500 line-clamp-1">{ex.desc}</p></div><ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-emerald-500 transition-colors" /></div>)}</div></div>}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center mb-4">
+                  <button onClick={() => setSelectedExerciseId(null)} className="flex items-center gap-2 text-slate-500 font-bold"><ChevronRight className="w-5 h-5 rotate-180" /> Back to Library</button>
+                  <button onClick={() => { const exToEdit = exercises.find(e => e.id === selectedExerciseId); setExerciseForm({ ...exToEdit, notes: exToEdit.notes || '', desc: exToEdit.desc || '' }); setEditingExerciseId(selectedExerciseId); setSelectedExerciseId(null); setShowAddExercise(true); }} className="flex items-center gap-2 text-emerald-600 bg-emerald-100 px-3 py-2 rounded-xl text-sm font-bold hover:bg-emerald-200 transition-colors"><Edit3 className="w-4 h-4" /> Edit</button>
+                </div>
+                
+                {(() => {
+                  const ex = exercises.find(e => e.id === selectedExerciseId);
+                  if (!ex) return null;
+                  const chartData = getExerciseData(ex.id);
+                  const personalBest = chartData.length > 0 ? Math.max(...chartData.map(d => d.value)) : 0;
+
+                  return (
+                    <>
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm relative overflow-hidden">
+                        {ex.imgUrl && <img src={ex.imgUrl} className="absolute inset-0 w-full h-full object-cover opacity-10" alt=""/>}
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-2 text-emerald-500 mb-2">
+                            {getCategoryIcon(ex.category)}
+                            <span className="text-xs font-bold uppercase tracking-wider">{ex.category}</span>
+                          </div>
+                          <h2 className="text-3xl font-black mb-1">{ex.name}</h2>
+                          {ex.desc && <p className="text-emerald-600 font-bold text-sm mb-3">{ex.desc}</p>}
+                          {ex.notes && <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl mt-4 border border-slate-100 dark:border-slate-700"><p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Trainer Notes</p><p className="text-slate-700 dark:text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">{ex.notes}</p></div>}
+                          {chartData.length > 0 && <div className="mt-4 inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-4 py-2 rounded-xl font-bold text-sm shadow-sm border border-amber-200 dark:border-amber-900/50"><Trophy className="w-4 h-4" /> Personal Best: <span className="text-base font-black ml-1">{personalBest} {ex.unit}</span></div>}
+                        </div>
+                      </div>
+
+                      <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex justify-between items-center mb-6">
+                           <h3 className="font-bold flex items-center gap-2"><TrendingUp className="w-5 h-5 text-blue-500"/> Progress History</h3>
+                           <TimeFilterSelect value={libFilter} onChange={setLibFilter} />
+                        </div>
+                        {chartData.length > 0 ? (
+                          <div className="h-56 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={chartData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                <XAxis dataKey="date" hide />
+                                <YAxis domain={['dataMin - 5', 'dataMax + 5']} width={40} tick={{fontSize: 12, fill: '#94a3b8'}} axisLine={false} tickLine={false} />
+                                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={4} dot={{ r: 5, fill: '#3b82f6' }} activeDot={{ r: 8 }} />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </div>
+                        ) : (
+                          <div className="text-center text-slate-400 py-10 font-medium">No data logged in this period.</div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="font-bold text-slate-800 dark:text-white px-2">Log History</h4>
+                        {logs.filter(l => l.exerciseId === ex.id).sort((a,b) => new Date(b.date) - new Date(a.date)).map(log => (
+                          <div key={log.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm flex justify-between items-center group">
+                            <span className="text-slate-500 font-medium">{log.date}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-xl font-black text-emerald-600">
+                                {log.value} <span className="text-sm text-slate-400 font-normal">{ex.unit}</span>
+                                {log.reps && <span className="text-base text-slate-500 ml-2 font-bold">x {log.reps}</span>}
+                              </span>
+                              {log.reps && ex.category === 'weight' && (
+                                <span className="text-[10px] bg-slate-100 dark:bg-slate-900 text-slate-500 px-2 py-1 rounded-lg font-medium hidden sm:inline-block">
+                                  Est 1RM: {Math.round(log.value * (1 + (parseInt(log.reps) / 30)))} {ex.unit}
+                                </span>
+                              )}
+                              {settings.myzoneConnected && log.meps > 0 && <span className="bg-rose-50 dark:bg-rose-900/20 text-rose-500 text-xs px-2 py-1 rounded-lg font-bold">{log.meps} MEPs</span>}
+                              <button onClick={() => deleteLog(log.id)} className="text-slate-300 hover:text-rose-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Exercise Selector Modal for Active Session */}
+        {showDraftSelector && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col justify-end">
+            <div className="bg-white dark:bg-slate-800 rounded-t-3xl p-6 h-[75vh] flex flex-col shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black">Select Exercise</h3>
+                <button onClick={() => setShowDraftSelector(false)} className="text-slate-400 p-2 bg-slate-100 dark:bg-slate-900 rounded-full hover:text-rose-500 transition-colors"><X className="w-5 h-5"/></button>
+              </div>
+              <div className="overflow-y-auto space-y-3 flex-1 pb-10 pr-2">
+                {exercises.map(ex => (
+                  <div key={ex.id} onClick={() => addExerciseToDraft(ex.id)} className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl cursor-pointer active:scale-95 transition-transform hover:ring-2 ring-emerald-500/50">
+                     <div className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm text-emerald-600">
+                       {getCategoryIcon(ex.category)}
+                     </div>
+                     <div>
+                       <h4 className="font-bold text-lg leading-tight">{ex.name}</h4>
+                       <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">{ex.category}</p>
+                     </div>
+                     <Plus className="w-6 h-6 text-emerald-500 ml-auto bg-emerald-100 dark:bg-emerald-900/30 rounded-full p-1" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const BodyTab = () => {
+    const handleWeightChange = (val) => {
+      let bmi = metricForm.bmi;
+      if (val && settings.height) {
+        bmi = (parseFloat(val) / Math.pow(settings.height / 100, 2)).toFixed(1);
+      } else if (!val) {
+        bmi = '';
+      }
+      setMetricForm({...metricForm, weight: val, bmi});
+    };
+
+    const filteredMetrics = filterByTime(metrics, 'date', bodyFilter);
+
+    const latestMetrics = metrics[metrics.length - 1] || {};
+    const radarData = [
+      { subject: 'L. Arm', lean: latestMetrics.segLeanLArm || 0, fat: latestMetrics.segFatLArm || 0 },
+      { subject: 'R. Arm', lean: latestMetrics.segLeanRArm || 0, fat: latestMetrics.segFatRArm || 0 },
+      { subject: 'Trunk', lean: latestMetrics.segLeanTrunk || 0, fat: latestMetrics.segFatTrunk || 0 },
+      { subject: 'R. Leg', lean: latestMetrics.segLeanRLeg || 0, fat: latestMetrics.segFatRLeg || 0 },
+      { subject: 'L. Leg', lean: latestMetrics.segLeanLLeg || 0, fat: latestMetrics.segFatLLeg || 0 },
+    ];
+
+    return (
+      <div className="space-y-6 pb-24">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl">
+          <button onClick={() => setBodyTabState('log')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${bodyTabState === 'log' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>Log Scan</button>
+          <button onClick={() => setBodyTabState('history')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${bodyTabState === 'history' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>History</button>
+          <button onClick={() => setBodyTabState('analytics')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${bodyTabState === 'analytics' ? 'bg-white dark:bg-slate-700 shadow-sm text-purple-600 dark:text-purple-400' : 'text-slate-500'}`}>Analytics</button>
+        </div>
+
+        {bodyTabState === 'log' && (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Scale className="text-blue-500 w-5 h-5"/> Log Body Composition</h3>
+            <form onSubmit={addMetric}>
+              <div className="grid grid-cols-2 gap-3 mb-8">
+                <input type="number" step="0.1" placeholder="Weight (kg)" value={metricForm.weight} onChange={e => handleWeightChange(e.target.value)} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-blue-500 text-lg font-bold" />
+                <input type="number" step="0.1" placeholder="Body Fat (%)" value={metricForm.fat} onChange={e => setMetricForm({...metricForm, fat: e.target.value})} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-blue-500 text-lg font-bold" />
+                <input type="number" step="0.1" placeholder="Muscle Mass (kg)" value={metricForm.muscleMass} onChange={e => setMetricForm({...metricForm, muscleMass: e.target.value})} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-emerald-500 text-lg font-bold" />
+                <input type="number" step="0.1" placeholder="Fat Mass (kg)" value={metricForm.bodyFatMass} onChange={e => setMetricForm({...metricForm, bodyFatMass: e.target.value})} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-rose-500 text-lg font-bold" />
+                <input type="number" step="0.1" placeholder="BMI" value={metricForm.bmi} onChange={e => setMetricForm({...metricForm, bmi: e.target.value})} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-amber-500 text-lg font-bold" />
+                <input type="number" placeholder="BMR (kcal)" value={metricForm.bmr} onChange={e => setMetricForm({...metricForm, bmr: e.target.value})} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-purple-500 text-lg font-bold" />
+              </div>
+
+              <div className="mb-8">
+                <h4 className="font-black text-slate-800 dark:text-white text-center mb-1">Segmental Lean Mass</h4>
+                <p className="text-xs text-center text-slate-500 mb-4 uppercase tracking-wider font-bold">Input kilograms (kg)</p>
+                <div className="relative w-full max-w-[260px] mx-auto aspect-square bg-emerald-50/50 dark:bg-slate-900/50 rounded-full border-4 border-emerald-100 dark:border-emerald-900/30 flex items-center justify-center p-8">
+                  <User className="w-40 h-40 text-emerald-200 dark:text-emerald-900/40 absolute opacity-50" />
+                  <input placeholder="L. Arm" value={metricForm.segLeanLArm} onChange={e => setMetricForm({...metricForm, segLeanLArm: e.target.value})} className="absolute top-10 -left-4 w-16 p-2 text-center rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-emerald-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="R. Arm" value={metricForm.segLeanRArm} onChange={e => setMetricForm({...metricForm, segLeanRArm: e.target.value})} className="absolute top-10 -right-4 w-16 p-2 text-center rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-emerald-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="Trunk" value={metricForm.segLeanTrunk} onChange={e => setMetricForm({...metricForm, segLeanTrunk: e.target.value})} className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-20 p-2 text-center rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-emerald-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="L. Leg" value={metricForm.segLeanLLeg} onChange={e => setMetricForm({...metricForm, segLeanLLeg: e.target.value})} className="absolute bottom-6 left-2 w-16 p-2 text-center rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-emerald-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="R. Leg" value={metricForm.segLeanRLeg} onChange={e => setMetricForm({...metricForm, segLeanRLeg: e.target.value})} className="absolute bottom-6 right-2 w-16 p-2 text-center rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-emerald-500 outline-none z-10 shadow-sm" />
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <h4 className="font-black text-slate-800 dark:text-white text-center mb-1">Segmental Fat Mass</h4>
+                <p className="text-xs text-center text-slate-500 mb-4 uppercase tracking-wider font-bold">Input kilograms (kg)</p>
+                <div className="relative w-full max-w-[260px] mx-auto aspect-square bg-rose-50/50 dark:bg-slate-900/50 rounded-full border-4 border-rose-100 dark:border-rose-900/30 flex items-center justify-center p-8">
+                  <User className="w-40 h-40 text-rose-200 dark:text-rose-900/40 absolute opacity-50" />
+                  <input placeholder="L. Arm" value={metricForm.segFatLArm} onChange={e => setMetricForm({...metricForm, segFatLArm: e.target.value})} className="absolute top-10 -left-4 w-16 p-2 text-center rounded-xl border-2 border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-rose-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="R. Arm" value={metricForm.segFatRArm} onChange={e => setMetricForm({...metricForm, segFatRArm: e.target.value})} className="absolute top-10 -right-4 w-16 p-2 text-center rounded-xl border-2 border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-rose-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="Trunk" value={metricForm.segFatTrunk} onChange={e => setMetricForm({...metricForm, segFatTrunk: e.target.value})} className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-20 p-2 text-center rounded-xl border-2 border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-rose-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="L. Leg" value={metricForm.segFatLLeg} onChange={e => setMetricForm({...metricForm, segFatLLeg: e.target.value})} className="absolute bottom-6 left-2 w-16 p-2 text-center rounded-xl border-2 border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-rose-500 outline-none z-10 shadow-sm" />
+                  <input placeholder="R. Leg" value={metricForm.segFatRLeg} onChange={e => setMetricForm({...metricForm, segFatRLeg: e.target.value})} className="absolute bottom-6 right-2 w-16 p-2 text-center rounded-xl border-2 border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-800 text-xs font-bold focus:ring-2 ring-rose-500 outline-none z-10 shadow-sm" />
+                </div>
+              </div>
+
+              <button type="submit" className="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg shadow-blue-500/30 hover:bg-blue-700 transition-colors">Save Complete Scan</button>
+            </form>
+          </div>
+        )}
+
+        {bodyTabState === 'history' && (
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+            <h4 className="font-bold mb-4 flex items-center gap-2"><ListPlus className="w-5 h-5 text-emerald-500" /> Measurement History</h4>
+            <div className="space-y-4">
+              {metrics.slice().reverse().map((m, i) => (
+                <div key={i} className="bg-slate-50 dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 relative group">
+                  <div className="flex justify-between items-center mb-3 border-b border-slate-200 dark:border-slate-700 pb-2">
+                    <span className="text-sm font-black text-slate-600 dark:text-slate-300">{m.date}</span>
+                    <div className="flex items-center gap-2">
+                      {m.bmi && <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-lg">BMI: {m.bmi}</span>}
+                      <button onClick={() => deleteMetric(m.date)} className="text-slate-300 hover:text-rose-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Weight</p>
+                      <p className="font-black text-slate-800 dark:text-white">{m.weight}<span className="text-xs text-slate-400 ml-0.5">kg</span></p>
+                    </div>
+                    <div className="text-center border-l border-r border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Body Fat</p>
+                      <p className="font-black text-rose-500">{m.fat ? `${m.fat}%` : '--'}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Muscle</p>
+                      <p className="font-black text-emerald-600">{m.muscleMass ? `${m.muscleMass}kg` : '--'}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {bodyTabState === 'analytics' && (
+          <div className="space-y-6">
+             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-emerald-500" /> Body Fat % Trend
+                  </h3>
+                  <TimeFilterSelect value={bodyFilter} onChange={setBodyFilter} />
+                </div>
+                <div className="h-56 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={filteredMetrics.filter(m => m.fat)}>
+                      <defs>
+                        <linearGradient id="colorFat" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="date" tick={{fontSize: 10}} tickMargin={10} />
+                      <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{fontSize: 10}} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} />
+                      <Area type="monotone" dataKey="fat" name="Body Fat %" stroke="#f43f5e" strokeWidth={3} fillOpacity={1} fill="url(#colorFat)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+             </div>
+
+             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+                <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                  <User className="w-5 h-5 text-purple-500" /> Latest Segmental Balance
+                </h3>
+                <p className="text-xs text-slate-500 mb-2">Compares Left vs Right (Lean & Fat)</p>
+                <div className="h-72 w-full -ml-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                      <PolarGrid stroke="#e2e8f0" />
+                      <PolarAngleAxis dataKey="subject" tick={{fontSize: 10, fill: '#64748b', fontWeight: 'bold'}} />
+                      <PolarRadiusAxis angle={30} domain={[0, 'auto']} tick={{fontSize: 8}} />
+                      <Radar name="Lean Mass (kg)" dataKey="lean" stroke="#10b981" fill="#10b981" fillOpacity={0.4} />
+                      <Radar name="Fat Mass (kg)" dataKey="fat" stroke="#f43f5e" fill="#f43f5e" fillOpacity={0.4} />
+                      <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+             </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const NutritionTab = () => {
+    const targets = settings.nutritionTargets || { calories: 2500, protein: 180, carbs: 220, fat: 80 };
+    
+    // Nutrition UI States
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedFood, setSelectedFood] = useState(null);
+    const [servingAmount, setServingAmount] = useState('');
+
+    const todayLogs = nutritionLogs.filter(n => n.date === nutritionDate);
+    const dailyTotals = todayLogs.reduce((acc, curr) => {
+      return {
+        calories: acc.calories + curr.calories,
+        protein: acc.protein + curr.protein,
+        carbs: acc.carbs + curr.carbs,
+        fat: acc.fat + curr.fat
+      };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    // Net Calories considering training burn
+    const dailyBurn = calculateDailyBurn(nutritionDate);
+    const netCalories = dailyTotals.calories - dailyBurn;
+
+    // The API Search Engine
+    const handleSearch = async (e) => {
+      e.preventDefault();
+      if (!searchQuery.trim()) return;
+      setIsSearching(true);
+      
+      try {
+        const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(searchQuery)}&search_simple=1&action=process&json=1&page_size=15`);
+        const data = await res.json();
+        
+        const mapped = data.products
+          .filter(p => p.nutriments && p.nutriments['energy-kcal_100g']) 
+          .map(p => ({
+             id: p.code || Math.random().toString(),
+             name: p.product_name || searchQuery,
+             brand: p.brands || 'Generic',
+             calories_100g: p.nutriments['energy-kcal_100g'] || 0,
+             protein_100g: p.nutriments.proteins_100g || 0,
+             carbs_100g: p.nutriments.carbohydrates_100g || 0,
+             fat_100g: p.nutriments.fat_100g || 0,
+          }));
+        
+        setSearchResults(mapped.length === 0 ? [] : mapped);
+      } catch(err) {
+        console.error("API Search failed", err);
+        setSearchResults([]);
+      }
+      setIsSearching(false);
+    };
+
+    const handleAddFood = (e) => {
+      e.preventDefault();
+      if (!selectedFood) return;
+      
+      let newLog;
+
+      if (selectedFood.id === 'manual_direct') {
+        newLog = {
+          id: Date.now() + Math.random(),
+          date: nutritionDate,
+          name: selectedFood.name || 'Custom Meal',
+          brand: 'Manual Entry',
+          servingAmount: 1, // Represents 1 meal/entry
+          calories: Number(selectedFood.calories_100g) || 0,
+          protein: Number(selectedFood.protein_100g) || 0,
+          carbs: Number(selectedFood.carbs_100g) || 0,
+          fat: Number(selectedFood.fat_100g) || 0,
+        };
+      } else {
+        if(!servingAmount) return;
+        const multiplier = Number(servingAmount) / 100;
+        newLog = {
+          id: Date.now() + Math.random(),
+          date: nutritionDate,
+          name: selectedFood.name,
+          brand: selectedFood.brand,
+          servingAmount: Number(servingAmount),
+          calories: Math.round(selectedFood.calories_100g * multiplier),
+          protein: Math.round(selectedFood.protein_100g * multiplier),
+          carbs: Math.round(selectedFood.carbs_100g * multiplier),
+          fat: Math.round(selectedFood.fat_100g * multiplier),
+        };
+      }
+
+      setNutritionLogs([newLog, ...nutritionLogs]);
+      setSelectedFood(null);
+      setSearchQuery('');
+      setSearchResults([]);
+      setServingAmount('');
+    };
+
+    const deleteNutritionLog = (id) => {
+      setNutritionLogs(nutritionLogs.filter(n => n.id !== id));
+    };
+
+    // Analytics Data Prep
+    const nutritionChartData = useMemo(() => {
+      const dataMap = {};
+      nutritionLogs.forEach(log => {
+        if (!dataMap[log.date]) {
+          dataMap[log.date] = { date: log.date, calories: 0 };
+        }
+        dataMap[log.date].calories += log.calories;
+      });
+      return filterByTime(Object.values(dataMap).sort((a,b) => new Date(a.date) - new Date(b.date)), 'date', nutriFilter);
+    }, [nutritionLogs, nutriFilter]);
+
+    const MacroBar = ({ label, current, target, colorClass, bgClass, icon: Icon }) => {
+      const isOver = current > target;
+      const percent = Math.min(100, (current / target) * 100);
+      const activeColor = isOver ? 'bg-rose-500' : colorClass;
+      const activeText = isOver ? 'text-rose-500' : colorClass.replace('bg-', 'text-');
+      
+      return (
+        <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-2xl border border-transparent transition-colors" style={isOver ? {borderColor: '#f43f5e33'} : {}}>
+          <div className="flex justify-between items-center mb-1">
+            <div className="flex items-center gap-1">
+              <Icon className={`w-3 h-3 ${activeText}`} />
+              <span className={`text-[10px] uppercase font-bold ${isOver ? 'text-rose-500' : 'text-slate-500'}`}>{label}</span>
+            </div>
+            <span className="text-xs font-black">{Math.round(current)}<span className="text-[10px] text-slate-400 font-normal">/{target}g</span></span>
+          </div>
+          <div className={`h-2 w-full rounded-full ${bgClass} overflow-hidden`}>
+            <div className={`h-full ${activeColor} rounded-full transition-all duration-500`} style={{width: `${percent}%`}}></div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-6 pb-24">
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl mb-4">
+          <button onClick={() => setNutritionTabState('daily')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${nutritionTabState === 'daily' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500'}`}>Daily Log</button>
+          <button onClick={() => setNutritionTabState('analytics')} className={`flex-1 py-2 text-sm font-bold rounded-xl transition-all ${nutritionTabState === 'analytics' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500'}`}>Trends</button>
+        </div>
+
+        {nutritionTabState === 'daily' && (
+          <>
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-black text-slate-800 dark:text-white">Daily Intake</h2>
+              <input 
+                type="date" 
+                value={nutritionDate} 
+                onChange={(e) => setNutritionDate(e.target.value)} 
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-600 dark:text-slate-300"
+              />
+            </div>
+
+            {/* Daily Summary Hero */}
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+              <div className="flex justify-between items-end mb-4 border-b border-slate-100 dark:border-slate-700 pb-4">
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><Flame className="w-4 h-4 text-rose-500"/> Calories</p>
+                  <h3 className="text-4xl font-black text-slate-800 dark:text-white leading-none">{Math.round(dailyTotals.calories)}</h3>
+                  {dailyBurn > 0 && <p className="text-xs font-bold mt-2 text-blue-500">Net: {netCalories} kcal (-{dailyBurn} active)</p>}
+                </div>
+                <div className="text-right">
+                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full border-4 ${dailyTotals.calories > targets.calories ? 'border-rose-500 bg-rose-50 dark:bg-rose-900/20 text-rose-600' : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'}`}>
+                    <span className="text-sm font-black">{Math.abs(targets.calories - dailyTotals.calories)}</span>
+                  </div>
+                  <p className="text-[10px] uppercase font-bold text-slate-400 mt-1">{dailyTotals.calories > targets.calories ? 'Over Goal' : 'Remaining'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <MacroBar label="Protein" current={dailyTotals.protein} target={targets.protein} colorClass="bg-emerald-500" bgClass="bg-emerald-100 dark:bg-emerald-900/30" icon={Database} />
+                <MacroBar label="Carbs" current={dailyTotals.carbs} target={targets.carbs} colorClass="bg-blue-500" bgClass="bg-blue-100 dark:bg-blue-900/30" icon={Wheat} />
+                <MacroBar label="Fat" current={dailyTotals.fat} target={targets.fat} colorClass="bg-amber-500" bgClass="bg-amber-100 dark:bg-amber-900/30" icon={Droplet} />
+              </div>
+            </div>
+
+            {/* Food Search / Entry Engine */}
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+              <h4 className="font-bold mb-3 flex items-center gap-2"><Search className="w-4 h-4 text-slate-400" /> Log Food</h4>
+              
+              {!selectedFood ? (
+                <div>
+                  <form onSubmit={handleSearch} className="flex gap-2 mb-3">
+                    <input 
+                      type="text" placeholder="Search database..." 
+                      value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                      className="flex-1 p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border-none outline-none focus:ring-2 ring-rose-500 text-sm"
+                    />
+                    <button type="submit" disabled={isSearching} className="bg-rose-600 text-white px-4 rounded-xl font-bold hover:bg-rose-700 disabled:opacity-50">
+                      {isSearching ? '...' : 'Find'}
+                    </button>
+                    <button type="button" onClick={() => setSelectedFood({ id:'manual_direct', name:'', calories_100g:0, protein_100g:0, carbs_100g:0, fat_100g:0 })} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 rounded-xl font-bold hover:bg-slate-200 transition-colors text-sm">
+                      Custom
+                    </button>
+                  </form>
+                  
+                  {searchResults.length > 0 && (
+                    <div className="border border-slate-100 dark:border-slate-700 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                      {searchResults.map((result, idx) => (
+                        <div key={idx} onClick={() => setSelectedFood(result)} className="p-3 border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer flex justify-between items-center transition-colors">
+                          <div>
+                            <p className="font-bold text-sm text-slate-800 dark:text-slate-200">{result.name}</p>
+                            <p className="text-[10px] text-slate-500 uppercase">{result.brand} • per 100g</p>
+                          </div>
+                          <div className="text-right text-xs">
+                            <span className="font-black text-rose-500">{result.calories_100g} kcal</span>
+                            <p className="text-[10px] text-slate-400">P:{result.protein_100g} C:{result.carbs_100g} F:{result.fat_100g}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <form onSubmit={handleAddFood} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-rose-100 dark:border-rose-900/30">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h4 className="font-black text-lg text-slate-800 dark:text-white leading-tight">{selectedFood.id === 'manual_direct' ? 'Custom Meal Entry' : selectedFood.name}</h4>
+                      {selectedFood.id !== 'manual_direct' && <p className="text-xs text-slate-500">{selectedFood.brand}</p>}
+                    </div>
+                    <button type="button" onClick={() => setSelectedFood(null)} className="text-slate-400 hover:text-rose-500 bg-white dark:bg-slate-800 p-1.5 rounded-full shadow-sm"><X className="w-4 h-4"/></button>
+                  </div>
+
+                  {selectedFood.id === 'manual_direct' ? (
+                    <div className="space-y-3">
+                      <input type="text" required placeholder="Meal Name (e.g. Grandma's Pasta)" value={selectedFood.name || ''} onChange={e => setSelectedFood({...selectedFood, name: e.target.value})} className="w-full p-3 rounded-xl bg-white dark:bg-slate-800 font-bold" />
+                      <input type="number" required placeholder="Total Calories" value={selectedFood.calories_100g || ''} onChange={e => setSelectedFood({...selectedFood, calories_100g: Number(e.target.value)})} className="w-full p-3 rounded-xl bg-white dark:bg-slate-800 font-bold text-rose-500" />
+                      <div className="grid grid-cols-3 gap-2">
+                        <input type="number" placeholder="Protein (g)" value={selectedFood.protein_100g || ''} onChange={e => setSelectedFood({...selectedFood, protein_100g: Number(e.target.value)})} className="w-full p-2 text-center rounded-xl bg-white dark:bg-slate-800 text-sm font-bold text-emerald-500" />
+                        <input type="number" placeholder="Carbs (g)" value={selectedFood.carbs_100g || ''} onChange={e => setSelectedFood({...selectedFood, carbs_100g: Number(e.target.value)})} className="w-full p-2 text-center rounded-xl bg-white dark:bg-slate-800 text-sm font-bold text-blue-500" />
+                        <input type="number" placeholder="Fat (g)" value={selectedFood.fat_100g || ''} onChange={e => setSelectedFood({...selectedFood, fat_100g: Number(e.target.value)})} className="w-full p-2 text-center rounded-xl bg-white dark:bg-slate-800 text-sm font-bold text-amber-500" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <div className="flex-1 relative">
+                        <input 
+                          type="number" required autoFocus placeholder="Amount in Grams (g)" 
+                          value={servingAmount} onChange={e => setServingAmount(e.target.value)}
+                          className="w-full p-4 rounded-xl bg-white dark:bg-slate-800 border-none focus:ring-2 ring-rose-500 font-black text-lg pr-12"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">g</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" className="w-full bg-rose-600 text-white p-3 rounded-xl font-bold mt-4 shadow-lg shadow-rose-500/30 flex items-center justify-center gap-2">
+                    <Plus className="w-5 h-5"/> Add to Diary
+                  </button>
+                </form>
+              )}
+            </div>
+
+            {/* Daily Log Feed */}
+            <div className="space-y-3">
+              <h4 className="font-bold text-slate-800 dark:text-white px-2 mt-2">Food Diary</h4>
+              {todayLogs.length === 0 ? (
+                <div className="text-center p-6 bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl text-slate-400 font-medium">
+                  No food logged today.
+                </div>
+              ) : (
+                todayLogs.slice().reverse().map((log) => (
+                  <div key={log.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm flex items-center justify-between group">
+                    <div>
+                      <h4 className="font-bold text-slate-800 dark:text-slate-200 leading-tight">{log.name}</h4>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-wider">{log.brand} • {log.servingAmount}{log.brand === 'Manual Entry' ? ' serv' : 'g'}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="font-black text-rose-500 block leading-none">{log.calories} <span className="text-[10px] font-normal text-slate-400 uppercase">kcal</span></span>
+                        <span className="text-[10px] font-bold text-slate-400">P:{log.protein} C:{log.carbs} F:{log.fat}</span>
+                      </div>
+                      <button onClick={() => deleteNutritionLog(log.id)} className="text-slate-300 hover:text-rose-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {nutritionTabState === 'analytics' && (
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Target className="w-5 h-5 text-blue-500" /> Intake vs Target
+                </h3>
+                <TimeFilterSelect value={nutriFilter} onChange={setNutriFilter} />
+              </div>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                Bars represent daily calories. Green indicates a deficit or target met. Red indicates a caloric surplus. The dashed line is your target of <span className="font-bold text-slate-700 dark:text-slate-300">{targets.calories} kcal</span>.
+              </p>
+              
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={nutritionChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="date" tick={{fontSize: 10}} tickMargin={10} />
+                    <YAxis domain={[0, 'dataMax + 500']} tick={{fontSize: 10}} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', fontSize: '12px' }} cursor={{fill: 'transparent'}} />
+                    <Line type="step" dataKey={() => targets.calories} name="Target" stroke="#64748b" strokeWidth={2} strokeDasharray="5 5" dot={false} isAnimationActive={false} />
+                    <Bar dataKey="calories" name="Consumed" radius={[4, 4, 0, 0]}>
+                      {nutritionChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.calories > targets.calories ? '#f43f5e' : '#10b981'} />
+                      ))}
+                    </Bar>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // THE NEW PT REVIEW TAB
+  const ReportTab = () => {
+    const [weekOffset, setWeekOffset] = useState(0);
+
+    const last7Days = useMemo(() => {
+      const days = [];
+      for(let i=0; i<7; i++) {
+         const d = new Date();
+         d.setDate(d.getDate() - i - (weekOffset * 7));
+         days.push(d.toISOString().split('T')[0]);
+      }
+      return days;
+    }, [weekOffset]);
+
+    // Calculate rolling 7-day averages
+    const averages = useMemo(() => {
+      let totalCals = 0, totalPro = 0, weightSum = 0, weightCount = 0, workoutDays = 0, totalMeps = 0;
+      
+      last7Days.forEach(date => {
+        const dayNut = nutritionLogs.filter(n => n.date === date);
+        totalCals += dayNut.reduce((acc, curr) => acc + curr.calories, 0);
+        totalPro += dayNut.reduce((acc, curr) => acc + curr.protein, 0);
+        
+        const dayLogs = logs.filter(l => l.date === date);
+        if (dayLogs.length > 0) workoutDays++;
+        if (settings.myzoneConnected) totalMeps += dayLogs.reduce((acc, curr) => acc + (curr.meps || 0), 0);
+
+        const metric = metrics.find(m => m.date === date);
+        if (metric && metric.weight) { weightSum += metric.weight; weightCount++; }
+      });
+
+      return {
+        calAvg: Math.round(totalCals / 7),
+        proAvg: Math.round(totalPro / 7),
+        weightAvg: weightCount > 0 ? (weightSum / weightCount).toFixed(1) : '--',
+        workoutDays,
+        totalMeps
+      };
+    }, [last7Days, nutritionLogs, logs, metrics, settings.myzoneConnected]);
+
+    return (
+      <div className="space-y-6 pb-24">
+        {/* 7-Day Averages Header */}
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
+          <CalendarDays className="absolute -right-4 -top-4 w-32 h-32 opacity-10 rotate-12" />
+          <div className="relative z-10">
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-indigo-100 text-xs font-bold uppercase tracking-widest">7-Day Trainer Summary</p>
+              <div className="flex gap-2">
+                 <button onClick={() => setWeekOffset(w => w + 1)} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg text-xs font-bold backdrop-blur-sm transition-colors">&larr; Prev</button>
+                 {weekOffset > 0 && <button onClick={() => setWeekOffset(w => Math.max(0, w - 1))} className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg text-xs font-bold backdrop-blur-sm transition-colors">Next &rarr;</button>}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] text-indigo-200 uppercase font-bold">Avg Calories</p>
+                <p className="text-2xl font-black">{averages.calAvg} <span className="text-xs font-medium">kcal</span></p>
+              </div>
+              <div>
+                <p className="text-[10px] text-indigo-200 uppercase font-bold">Avg Protein</p>
+                <p className="text-2xl font-black">{averages.proAvg} <span className="text-xs font-medium">g</span></p>
+              </div>
+              <div>
+                <p className="text-[10px] text-indigo-200 uppercase font-bold">Training Days</p>
+                <p className="text-2xl font-black text-emerald-300">{averages.workoutDays} <span className="text-xs font-medium text-indigo-100">/ 7</span></p>
+              </div>
+              <div>
+                <p className="text-[10px] text-indigo-200 uppercase font-bold">Avg Weight</p>
+                <p className="text-2xl font-black">{averages.weightAvg} <span className="text-xs font-medium">kg</span></p>
+              </div>
+              {settings.myzoneConnected && (
+                <div className="col-span-2 border-t border-white/20 pt-3 mt-1">
+                  <p className="text-[10px] text-rose-200 uppercase font-bold flex items-center gap-1"><Radio className="w-3 h-3"/> MEPs (7 Days)</p>
+                  <p className="text-2xl font-black text-rose-400">{averages.totalMeps}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Audit Log */}
+        <h3 className="font-black text-xl text-slate-800 dark:text-white px-2 mt-4">Audit Log</h3>
+        
+        <div className="space-y-4">
+          {last7Days.map(dateStr => {
+            const dayNut = nutritionLogs.filter(n => n.date === dateStr);
+            const dayCals = dayNut.reduce((a, c) => a + c.calories, 0);
+            const dayPro = dayNut.reduce((a, c) => a + c.protein, 0);
+            const dayWorkouts = logs.filter(l => l.date === dateStr);
+            const dayMetric = metrics.slice().reverse().find(m => m.date === dateStr);
+            const dayBurn = calculateDailyBurn(dateStr);
+            const dayMeps = dayWorkouts.reduce((a, c) => a + (c.meps || 0), 0);
+
+            // Group exercises to look cleaner
+            const groupedWorkouts = dayWorkouts.reduce((acc, log) => {
+              if(!acc[log.exerciseId]) acc[log.exerciseId] = { count: 0, ex: exercises.find(e=>e.id===log.exerciseId) };
+              acc[log.exerciseId].count++;
+              return acc;
+            }, {});
+
+            return (
+              <div key={dateStr} className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+                <div className="bg-slate-50 dark:bg-slate-900/50 px-5 py-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                  <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{new Date(dateStr).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  {dayMetric && dayMetric.weight && <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">{dayMetric.weight} kg</span>}
+                </div>
+                
+                <div className="p-5 space-y-4">
+                  {/* Diet Snapshot */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Apple className="w-4 h-4 text-rose-500" />
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Diet</span>
+                    </div>
+                    {dayCals > 0 ? (
+                      <div className="text-right">
+                        <span className={`font-black text-sm ${dayCals > settings.nutritionTargets?.calories ? 'text-rose-500' : 'text-emerald-500'}`}>{dayCals} kcal</span>
+                        <span className="text-xs font-bold text-slate-400 ml-2">P: {dayPro}g</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-400 italic">No data logged</span>
+                    )}
+                  </div>
+
+                  {/* Training Snapshot */}
+                  <div className="border-t border-slate-50 dark:border-slate-700/50 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-emerald-500" />
+                        <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Training</span>
+                      </div>
+                      {dayWorkouts.length > 0 && (
+                        <div className="flex gap-2">
+                          <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 px-2 py-1 rounded-md flex items-center gap-1"><Flame className="w-3 h-3"/> ~{dayBurn} kcal</span>
+                          {settings.myzoneConnected && <span className="text-[10px] font-bold bg-rose-50 dark:bg-rose-900/20 text-rose-600 px-2 py-1 rounded-md flex items-center gap-1"><Radio className="w-3 h-3"/> {dayMeps} MEPs</span>}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {dayWorkouts.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {Object.values(groupedWorkouts).map((group, idx) => group.ex ? (
+                          <span key={idx} className="text-xs font-bold bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-lg">
+                            {group.count}x {group.ex.name}
+                          </span>
+                        ) : null)}
+                      </div>
+                    ) : (
+                      <span className="text-xs font-medium text-slate-400 italic">Rest Day</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-emerald-100 pb-20">
+      <div className="max-w-md mx-auto px-4 pt-8">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">FITNESS TRACKER</h1>
+            <p className="text-emerald-600 font-bold text-xs uppercase tracking-widest mt-1">Mark's Training System</p>
+          </div>
+          <div className="w-12 h-12 bg-slate-900 dark:bg-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 rotate-3 transition-all duration-300">
+            {activeTab === 'dashboard' && <Activity className="text-white w-6 h-6" />}
+            {activeTab === 'train' && <Play className="text-white w-6 h-6 fill-current" />}
+            {activeTab === 'body' && <Scale className="text-white w-6 h-6" />}
+            {activeTab === 'nutrition' && <Apple className="text-white w-6 h-6" />}
+            {activeTab === 'report' && <ClipboardList className="text-white w-6 h-6" />}
+          </div>
+        </div>
+
+        {/* Content Area */}
+        {activeTab === 'dashboard' && <Dashboard />}
+        {activeTab === 'train' && <TrainTab />}
+        {activeTab === 'body' && <BodyTab />}
+        {activeTab === 'nutrition' && <NutritionTab />}
+        {activeTab === 'report' && <ReportTab />}
+
+        {/* Bottom Navigation */}
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[98%] max-w-md bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-3xl p-1.5 shadow-2xl flex justify-between items-center z-50">
+          {[
+            { id: 'dashboard', icon: Activity, label: 'Dash' },
+            { id: 'train', icon: Dumbbell, label: 'Train' },
+            { id: 'nutrition', icon: Apple, label: 'Diet' },
+            { id: 'body', icon: Scale, label: 'Body' },
+            { id: 'report', icon: ClipboardList, label: 'Review' }
+          ].map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center justify-center flex-1 h-14 rounded-2xl transition-all duration-300 ${activeTab === tab.id ? 'bg-emerald-600 text-white shadow-md transform -translate-y-1' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}
+            >
+              <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'mb-0.5' : ''}`} />
+              <span className={`text-[9px] font-bold uppercase tracking-wider ${activeTab === tab.id ? 'block' : 'hidden sm:block'}`}>{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
