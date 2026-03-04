@@ -190,7 +190,20 @@ export function AppProvider({ children }) {
         return pastLogs.length > 0 ? pastLogs[0] : null;
     }, [logs]);
 
-    // ── Data Import ──
+    // ── Data Import / Reset ──
+    const clearAllData = useCallback(() => {
+        setExercises([]);
+        setRoutines([]);
+        setLogs([]);
+        setMetrics([]);
+        setNutritionLogs([]);
+        setDailyDraft([]);
+        setMealTemplates([]);
+        setSleepLogs([]);
+        setRestDays([]);
+        setDeletedHistory([]);
+    }, [setExercises, setRoutines, setLogs, setMetrics, setNutritionLogs, setDailyDraft, setMealTemplates, setSleepLogs, setRestDays, setDeletedHistory]);
+
     const importData = useCallback((data) => {
         if (data.settings) setSettings(data.settings);
         if (data.exercises) setExercises(data.exercises);
@@ -226,7 +239,7 @@ export function AppProvider({ children }) {
         toggleRestDay, isRestDay,
         undoDelete,
         calculateDailyBurn, getPreviousLog,
-        importData, getAllData,
+        clearAllData, importData, getAllData,
     }), [
         exercises, routines, logs, metrics, nutritionLogs, settings, dailyDraft,
         mealTemplates, sleepLogs, restDays, deletedHistory,
@@ -242,7 +255,7 @@ export function AppProvider({ children }) {
         toggleRestDay, isRestDay,
         undoDelete,
         calculateDailyBurn, getPreviousLog,
-        importData, getAllData,
+        clearAllData, importData, getAllData,
     ]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

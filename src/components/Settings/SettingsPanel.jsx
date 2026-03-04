@@ -1,11 +1,13 @@
-import React from 'react';
-import { Radio, Download, Upload, X, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Radio, Download, Upload, X, Trash2, AlertTriangle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { exportData as doExport } from '../../utils/helpers';
-import { Modal, Toggle } from '../ui/SharedComponents';
+import { Modal, Toggle, ConfirmDialog } from '../ui/SharedComponents';
 
 const SettingsPanel = ({ isOpen, onClose }) => {
-    const { settings, setSettings, getAllData, importData, metrics } = useApp();
+    const { settings, setSettings, getAllData, importData, metrics, clearAllData } = useApp();
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+
     const targets = settings.nutritionTargets || { calories: 2500, protein: 180, carbs: 220, fat: 80 };
     const restDefaults = settings.restTimerDefaults || { strength: 180, hypertrophy: 90, cardio: 60, mobility: 30 };
 
@@ -23,6 +25,13 @@ const SettingsPanel = ({ isOpen, onClose }) => {
         };
         reader.readAsText(file);
         e.target.value = null;
+    };
+
+    const handleClearData = () => {
+        clearAllData();
+        setShowClearConfirm(false);
+        alert('All application data has been permanently cleared.');
+        onClose();
     };
 
     const Field = ({ label, children, color = 'text-slate-500' }) => (
@@ -157,8 +166,26 @@ const SettingsPanel = ({ isOpen, onClose }) => {
                     </label>
                 </div>
 
-                <button onClick={onClose} className="btn-primary w-full mt-2 font-black">Close Settings</button>
+                {/* Danger Zone */}
+                <div className="pt-4 mt-2 border-t border-red-900/30 flex flex-col gap-3">
+                    <button onClick={() => setShowClearConfirm(true)}
+                        className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-red-500/20 text-red-500 bg-red-500/5 hover:bg-red-500/20 font-bold transition-colors">
+                        <AlertTriangle className="w-4 h-4" /> Wipe All Data
+                    </button>
+                </div>
+
+                <button onClick={onClose} className="btn-primary w-full mt-4 font-black">Close Settings</button>
             </div>
+
+            <ConfirmDialog
+                isOpen={showClearConfirm}
+                title="Wipe All Application Data?"
+                message="This will permanently delete all workouts, nutrition logs, body scans, routines, and custom exercises. Make sure you back up first! This action cannot be undone."
+                confirmLabel="Yes, Wipe Data"
+                danger={true}
+                onConfirm={handleClearData}
+                onCancel={() => setShowClearConfirm(false)}
+            />
         </Modal>
     );
 };
