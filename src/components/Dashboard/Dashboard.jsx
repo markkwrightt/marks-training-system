@@ -8,7 +8,7 @@ import {
     Tooltip, ResponsiveContainer, ComposedChart, Legend
 } from 'recharts';
 import { useApp } from '../../context/AppContext';
-import { daysUntil, getPhase, getBodyMassStats, filterByTime, PHASE_COLORS } from '../../utils/helpers';
+import { daysUntil, getPhase, getBodyMassStats, filterByTime, PHASE_COLORS, getToday } from '../../utils/helpers';
 import { TimeFilter, SectionHeader, StatCard } from '../ui/SharedComponents';
 
 const Dashboard = ({ onOpenSettings }) => {
@@ -264,10 +264,10 @@ const Dashboard = ({ onOpenSettings }) => {
                                     <div
                                         title={`${d.date}: ${d.value} ${settings.myzoneConnected ? 'MEPs' : 'sets'}`}
                                         className={`w-4 h-4 rounded-sm transition-colors ${d.intensity === 0 ? 'bg-navy-800 border border-navy-600/30' :
-                                                d.intensity === 1 ? 'bg-accent-green/30 border border-accent-green/20' :
-                                                    d.intensity === 2 ? 'bg-accent-green/50 border border-accent-green/30' :
-                                                        d.intensity === 3 ? 'bg-accent-green/80 border border-accent-green/50' :
-                                                            'bg-accent-green border border-accent-green shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                                            d.intensity === 1 ? 'bg-accent-green/30 border border-accent-green/20' :
+                                                d.intensity === 2 ? 'bg-accent-green/50 border border-accent-green/30' :
+                                                    d.intensity === 3 ? 'bg-accent-green/80 border border-accent-green/50' :
+                                                        'bg-accent-green border border-accent-green shadow-[0_0_8px_rgba(16,185,129,0.3)]'
                                             }`}
                                     />
                                 </div>

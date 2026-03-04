@@ -9,7 +9,6 @@ import {
 import { useApp } from '../../context/AppContext';
 import { getToday, generateId, filterByTime, calculateTDEE } from '../../utils/helpers';
 import { TimeFilter, SectionHeader, MacroBar } from '../ui/SharedComponents';
-import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const tooltipStyle = {
     contentStyle: { background: '#111827', border: '1px solid #243049', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0' }
@@ -539,7 +538,7 @@ const NutritionTab = () => {
                         </div>
                     )}
 
-                    {/* Barcode Scanner Modal */}
+                    {/* Barcode Scanner Modal (Mock) */}
                     {showScanner && (
                         <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in">
                             <div className="p-5 flex justify-between items-center bg-black/50 absolute top-0 w-full z-10">
@@ -547,39 +546,51 @@ const NutritionTab = () => {
                                 <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-5 h-5 text-white" /></button>
                             </div>
 
-                            <div className="flex-1 mt-16 p-4">
-                                <div className="bg-white rounded-xl overflow-hidden text-black pt-2 pb-2">
-                                    <div id="reader" className="w-full"></div>
+                            <div className="flex-1 relative flex items-center justify-center overflow-hidden">
+                                {/* Blurred background to simulate camera feed out of focus */}
+                                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-30 blur-sm scale-110" />
+
+                                {/* Scanner Target Area */}
+                                <div className="w-64 h-40 relative z-10">
+                                    {/* Corner markers */}
+                                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-accent-green rounded-tl-xl" />
+                                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-accent-green rounded-tr-xl" />
+                                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-accent-green rounded-bl-xl" />
+                                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-accent-green rounded-br-xl" />
+
+                                    {/* Scanning Laser */}
+                                    <div className="absolute left-0 right-0 h-0.5 bg-accent-red shadow-[0_0_15px_rgba(244,63,94,1)] animate-[scan_2s_ease-in-out_infinite]" />
                                 </div>
+
+                                <p className="absolute bottom-20 text-white font-bold bg-black/60 px-4 py-2 rounded-xl text-sm animate-pulse">
+                                    Looking for barcode...
+                                </p>
                             </div>
 
-                            {React.useEffect(() => {
-                                let scanner = null;
-                                if (showScanner) {
-                                    scanner = new Html5QrcodeScanner('reader', { qrbox: { width: 250, height: 250 }, fps: 5 });
-                                    scanner.render(
-                                        (decodedText) => {
-                                            if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Haptic feedback
-                                            scanner.clear();
-                                            setShowScanner(false);
-                                            setSearchQuery(decodedText);
-                                            setShowSearch(true);
-                                            setTimeout(() => {
-                                                const searchInput = document.getElementById('search-input');
-                                                if (searchInput) {
-                                                    searchInput.focus();
-                                                }
-                                            }, 300);
-                                        },
-                                        (error) => { /* Ignore errors from video stream */ }
-                                    );
+                            {/* Hidden style for scan animation */}
+                            <style>{`
+                                @keyframes scan {
+                                    0% { top: 10%; }
+                                    50% { top: 90%; }
+                                    100% { top: 10%; }
                                 }
-                                return () => {
-                                    if (scanner) {
-                                        scanner.clear().catch(e => console.error(e));
-                                    }
-                                };
-                            }, [showScanner])}
+                            `}</style>
+
+                            {/* Mock the scan resolution after 2.5s */}
+                            {React.useEffect(() => {
+                                const timer = setTimeout(() => {
+                                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Haptic feedback
+                                    setShowScanner(false);
+                                    setSearchQuery('Quaker Oats');
+                                    setShowSearch(true);
+                                    // Auto trigger search shortly after the modal opens
+                                    setTimeout(() => {
+                                        const searchInput = document.getElementById('search-input');
+                                        if (searchInput) searchInput.focus();
+                                    }, 300);
+                                }, 2500);
+                                return () => clearTimeout(timer);
+                            }, [])}
                         </div>
                     )}
                 </div>
