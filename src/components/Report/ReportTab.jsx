@@ -1,14 +1,77 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import {
     CalendarDays, Apple, Activity, Flame, Radio, Scale, Droplets,
     TrendingDown, TrendingUp, Target, Dumbbell, Heart, Move, Bed, Printer, Share2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { formatDate, estimateCaloriesBurned } from '../../utils/helpers';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const ReportTab = () => {
     const { exercises, logs, nutritionLogs, metrics, settings, calculateDailyBurn } = useApp();
     const [weekOffset, setWeekOffset] = useState(0);
+    const [exporting, setExporting] = useState(false);
+    const reportRef = useRef(null);
+
+    const captureReport = useCallback(async () => {
+        if (!reportRef.current) return null;
+        return await html2canvas(reportRef.current, {
+            backgroundColor: '#0a0e1a',
+            scale: 2,
+            useCORS: true,
+            logging: false,
+        });
+    }, []);
+
+    const handleExportPDF = useCallback(async () => {
+        setExporting(true);
+        try {
+            const canvas = await captureReport();
+            if (!canvas) return;
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
+            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+            pdf.save(`fitness-report-${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (err) {
+            console.error('PDF export failed:', err);
+            alert('Failed to export PDF. Please try again.');
+        }
+        setExporting(false);
+    }, [captureReport]);
+
+    const handleShareWhatsApp = useCallback(async () => {
+        setExporting(true);
+        try {
+            const canvas = await captureReport();
+            if (!canvas) return;
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const file = new File([blob], `fitness-report-${new Date().toISOString().split('T')[0]}.png`, { type: 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: '7-Day Fitness Report',
+                    text: 'Check out my weekly fitness summary!',
+                    files: [file],
+                });
+            } else {
+                // Fallback: download and let user share manually
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = file.name;
+                a.click();
+                URL.revokeObjectURL(url);
+                alert('Image downloaded! Share it manually via WhatsApp.');
+            }
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.error('Share failed:', err);
+                alert('Sharing failed. Please try again.');
+            }
+        }
+        setExporting(false);
+    }, [captureReport]);
 
     const last7Days = useMemo(() => {
         const days = [];
@@ -76,7 +139,7 @@ const ReportTab = () => {
     }, [last7Days, nutritionLogs, logs, metrics, exercises, calculateDailyBurn]);
 
     return (
-        <div className="space-y-5 pb-24 animate-fade-in print:pb-0 print:space-y-4">
+        <div className="space-y-5 pb-24 animate-fade-in" ref={reportRef}>
             <style>{`
                 @media print {
                     body { background-color: white !important; color: black !important; }
@@ -98,16 +161,13 @@ const ReportTab = () => {
                             7 Day Summary <span className="opacity-70 normal-case ml-1">({formatDate(last7Days[6])} - {formatDate(last7Days[0])})</span>
                         </p>
                         <div className="flex gap-1.5 print:hidden">
-                            <button onClick={() => {
-                                const text = encodeURIComponent(`Check out my 7-day fitness summary!\nCalories: ${averages.calAvg} kcal/day\nWorkouts: ${averages.workoutDays} days\nWeight: ${averages.currentWeight}kg`);
-                                window.open(`https://wa.me/?text=${text}`, '_blank');
-                            }}
-                                className="bg-green-500/20 text-green-300 hover:bg-green-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5" title="Share to WhatsApp">
-                                <Share2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">WhatsApp</span>
+                            <button onClick={handleShareWhatsApp} disabled={exporting}
+                                className="bg-green-500/20 text-green-300 hover:bg-green-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50" title="Share to WhatsApp">
+                                <Share2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{exporting ? '...' : 'WhatsApp'}</span>
                             </button>
-                            <button onClick={() => window.print()}
-                                className="bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5" title="Export PDF">
-                                <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Export PDF</span>
+                            <button onClick={handleExportPDF} disabled={exporting}
+                                className="bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50" title="Export PDF">
+                                <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">{exporting ? '...' : 'Export PDF'}</span>
                             </button>
                             <button onClick={() => setWeekOffset(w => w + 1)}
                                 className="bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-xs font-bold transition-colors">← Prev</button>
