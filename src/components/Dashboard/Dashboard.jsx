@@ -253,17 +253,17 @@ const Dashboard = ({ onOpenSettings }) => {
                         <Calendar className="w-3.5 h-3.5 text-accent-green" />
                         <span className="section-label">30-Day Heatmap</span>
                     </div>
-                    <div className="flex gap-1.5 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5 overflow-x-hidden pt-1">
                         {heatmapData.map((d) => {
                             const dayOfM = parseInt(d.date.slice(-2));
                             return (
-                                <div key={d.date} className="flex flex-col gap-1 items-center shrink-0">
+                                <div key={d.date} className="flex flex-col gap-1 items-center justify-center">
                                     <span className={`text-[8px] font-bold ${d.date === getToday() ? 'text-accent-green' : 'text-slate-600'}`}>
                                         {dayOfM}
                                     </span>
                                     <div
                                         title={`${d.date}: ${d.value} ${settings.myzoneConnected ? 'MEPs' : 'sets'}`}
-                                        className={`w-4 h-4 rounded-sm transition-colors ${d.intensity === 0 ? 'bg-navy-800 border border-navy-600/30' :
+                                        className={`w-4 h-4 rounded-[4px] transition-colors ${d.intensity === 0 ? 'bg-navy-800 border border-navy-600/30' :
                                             d.intensity === 1 ? 'bg-accent-green/30 border border-accent-green/20' :
                                                 d.intensity === 2 ? 'bg-accent-green/50 border border-accent-green/30' :
                                                     d.intensity === 3 ? 'bg-accent-green/80 border border-accent-green/50' :
@@ -308,7 +308,31 @@ const Dashboard = ({ onOpenSettings }) => {
                             <YAxis yAxisId="left" domain={['dataMin - 5', 'dataMax + 5']} tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: '#64748b' }} axisLine={false} tickLine={false} />
                             <Tooltip {...tooltipStyle} />
-                            <Legend wrapperStyle={{ fontSize: '9px', paddingTop: '8px', color: '#64748b' }} />
+                            <Legend content={(props) => {
+                                const { payload } = props;
+                                const row1 = payload.filter(entry => ['Strength', 'Cardio', 'Mobility'].includes(entry.value));
+                                const row2 = payload.filter(entry => ['Weight', 'Muscle', 'Fat'].includes(entry.value));
+                                return (
+                                    <div className="flex flex-col items-center gap-1.5 pt-3 text-[9px] text-slate-400">
+                                        <div className="flex justify-center gap-3">
+                                            {row1.map((entry, index) => (
+                                                <div key={`item-r1-${index}`} className="flex items-center gap-1">
+                                                    <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: entry.color }} />
+                                                    <span>{entry.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex justify-center gap-3">
+                                            {row2.map((entry, index) => (
+                                                <div key={`item-r2-${index}`} className="flex items-center gap-1">
+                                                    <div className="w-2 h-0.5" style={{ backgroundColor: entry.color }} />
+                                                    <span>{entry.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            }} />
                             <Bar yAxisId="right" dataKey="strengthCount" name="Strength" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
                             <Bar yAxisId="right" dataKey="cardioCount" name="Cardio" stackId="a" fill="#f97316" />
                             <Bar yAxisId="right" dataKey="mobilityCount" name="Mobility" stackId="a" fill="#8b5cf6" radius={[4, 4, 0, 0]} />

@@ -9,6 +9,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { getToday, generateId, filterByTime, calculateTDEE } from '../../utils/helpers';
 import { TimeFilter, SectionHeader, MacroBar } from '../ui/SharedComponents';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 const tooltipStyle = {
     contentStyle: { background: '#111827', border: '1px solid #243049', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0' }
@@ -22,13 +23,12 @@ const MEAL_TYPES = [
 ];
 
 const NutritionTab = () => {
-    const { nutritionLogs, addNutritionLog, deleteNutritionLog, settings, calculateDailyBurn, metrics, mealTemplates, saveMealTemplate, deleteMealTemplate } = useApp();
+    const { nutritionLogs, addNutritionLog, deleteNutritionLog, settings, calculateDailyBurn, metrics } = useApp();
     const [subTab, setSubTab] = useState('daily');
     const [selectedDate, setSelectedDate] = useState(getToday);
     const [showSearch, setShowSearch] = useState(false);
     const [showManual, setShowManual] = useState(false);
     const [showLibrary, setShowLibrary] = useState(false);
-    const [showTemplates, setShowTemplates] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -108,6 +108,38 @@ const NutritionTab = () => {
         setSearching(false);
     }, [searchQuery]);
 
+    // Handle barcode search
+    const doBarcodeSearch = useCallback(async (barcode) => {
+        if (!navigator.onLine) {
+            alert('Offline Mode: Cannot search OpenFoodFacts while offline.');
+            setShowScanner(false);
+            return;
+        }
+        setSearching(true);
+        setShowScanner(false);
+        setSearchQuery(barcode); // pre-fill search input
+        setShowSearch(true);
+        try {
+            const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+            const data = await res.json();
+            if (data.status === 1 && data.product) {
+                const p = data.product;
+                setSearchResults([{
+                    name: p.product_name || 'Unknown',
+                    brand: p.brands || '',
+                    calories: Math.round(p.nutriments?.['energy-kcal_100g'] || 0),
+                    protein: Math.round(p.nutriments?.proteins_100g || 0),
+                    carbs: Math.round(p.nutriments?.carbohydrates_100g || 0),
+                    fat: Math.round(p.nutriments?.fat_100g || 0),
+                    imgUrl: p.image_small_url || '',
+                }]);
+            } else {
+                setSearchResults([]);
+            }
+        } catch { setSearchResults([]); }
+        setSearching(false);
+    }, []);
+
     const addFromSearch = (food) => {
         addNutritionLog({
             id: generateId(), date: selectedDate,
@@ -140,30 +172,6 @@ const NutritionTab = () => {
         addNutritionLog({ id: generateId(), date: selectedDate, ...manualForm });
         setManualForm({ name: '', brand: '', servingAmount: 100, calories: 0, protein: 0, carbs: 0, fat: 0, mealType: 'breakfast' });
         setShowManual(false);
-    };
-
-    const saveGroupAsTemplate = (group) => {
-        const name = prompt(`Enter a name to save this ${group.label} template:`, `My ${group.label}`);
-        if (!name) return;
-        saveMealTemplate({
-            name,
-            mealType: group.key,
-            items: group.items.map(i => ({
-                name: i.name, brand: i.brand,
-                calories: i.calories, protein: i.protein, carbs: i.carbs, fat: i.fat
-            }))
-        });
-        alert('Template saved!');
-    };
-
-    const applyTemplate = (template) => {
-        template.items.forEach(item => {
-            addNutritionLog({
-                id: generateId(), date: selectedDate,
-                ...item, mealType: template.mealType
-            });
-        });
-        setShowTemplates(false);
     };
 
     // Trend data
@@ -262,7 +270,7 @@ const NutritionTab = () => {
                         <div className="grid grid-cols-4 gap-2">
                             {[250, 500, 750, 1000].map(ml => (
                                 <button key={ml} onClick={() => addWater(ml)}
-                                    className="btn bg-accent-blue/10 text-accent-blue border border-accent-blue/20 text-xs font-bold">
+                                    className="py-2 text-accent-blue bg-accent-blue/10 border border-accent-blue/20 text-xs font-bold rounded-xl transition-colors hover:bg-accent-blue/20">
                                     +{ml}ml
                                 </button>
                             ))}
@@ -279,9 +287,6 @@ const NutritionTab = () => {
                         </button>
                         <button onClick={() => setShowLibrary(true)} className="btn-ghost flex-1 flex flex-col items-center justify-center gap-1.5 !py-3">
                             <BookOpen className="w-5 h-5 text-accent-green" /> My Foods
-                        </button>
-                        <button onClick={() => setShowTemplates(true)} className="btn-ghost flex-1 flex flex-col items-center justify-center gap-1.5 !py-3">
-                            <Copy className="w-5 h-5 text-accent-amber" /> Templates
                         </button>
                         <button onClick={() => setShowManual(true)} className="btn-ghost flex-1 flex flex-col items-center justify-center gap-1.5 !py-3">
                             <Plus className="w-5 h-5 text-accent-purple" /> Custom
@@ -302,9 +307,6 @@ const NutritionTab = () => {
                                         {group.items.length > 0 && (
                                             <div className="flex items-center gap-2">
                                                 <span className="text-xs font-bold text-slate-500">{group.cals} kcal</span>
-                                                <button onClick={() => saveGroupAsTemplate(group)} className="btn-icon !p-1 text-slate-500 hover:text-accent-blue" title="Save as Template">
-                                                    <Save className="w-4 h-4" />
-                                                </button>
                                             </div>
                                         )}
                                     </div>
@@ -501,96 +503,38 @@ const NutritionTab = () => {
                         </div>
                     )}
 
-                    {/* Templates Modal */}
-                    {showTemplates && (
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={() => setShowTemplates(false)}>
-                            <div className="bg-navy-800 rounded-3xl w-full max-w-sm border border-navy-600/30 animate-scale-in overflow-hidden" onClick={e => e.stopPropagation()}>
-                                <div className="p-5 border-b border-navy-600/30">
-                                    <div className="flex justify-between items-center">
-                                        <h3 className="text-xl font-black text-white">Meal Templates</h3>
-                                        <button onClick={() => setShowTemplates(false)} className="btn-icon"><X className="w-4 h-4" /></button>
-                                    </div>
-                                </div>
-                                <div className="overflow-y-auto max-h-[50vh] p-5 space-y-3">
-                                    {mealTemplates.length > 0 ? mealTemplates.map(t => (
-                                        <div key={t.id} className="card-interactive !p-3.5">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h4 className="font-bold text-white leading-tight">{t.name}</h4>
-                                                    <p className="text-[10px] text-slate-500 uppercase">{t.mealType} • {t.items.length} items</p>
-                                                </div>
-                                                <button onClick={() => deleteMealTemplate(t.id)} className="btn-icon !p-1 text-slate-500 hover:!text-accent-red">
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
-                                            <p className="text-xs text-slate-400 mb-3 line-clamp-2">
-                                                {t.items.map(i => i.name).join(', ')}
-                                            </p>
-                                            <button onClick={() => applyTemplate(t)} className="btn bg-accent-blue/10 text-accent-blue w-full font-bold text-sm py-2">
-                                                Quick Add
-                                            </button>
-                                        </div>
-                                    )) : (
-                                        <p className="text-center text-slate-600 py-6">No templates saved yet. Add foods to a meal and click the save icon.</p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Barcode Scanner Modal (Mock) */}
+                    {/* Barcode Scanner Modal */}
                     {showScanner && (
-                        <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in">
-                            <div className="p-5 flex justify-between items-center bg-black/50 absolute top-0 w-full z-10">
-                                <h3 className="text-white font-bold">Scan Barcode</h3>
-                                <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-5 h-5 text-white" /></button>
+                        <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in pb-10">
+                            <div className="p-5 flex justify-between items-center bg-black/80 absolute top-0 w-full z-10 border-b border-navy-600/30">
+                                <h3 className="text-white font-bold text-lg flex items-center gap-2"><Barcode className="w-5 h-5 text-accent-red" /> Scan Barcode</h3>
+                                <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-6 h-6 text-white" /></button>
                             </div>
 
-                            <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-                                {/* Blurred background to simulate camera feed out of focus */}
-                                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-30 blur-sm scale-110" />
-
-                                {/* Scanner Target Area */}
-                                <div className="w-64 h-40 relative z-10">
-                                    {/* Corner markers */}
-                                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-accent-green rounded-tl-xl" />
-                                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-accent-green rounded-tr-xl" />
-                                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-accent-green rounded-bl-xl" />
-                                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-accent-green rounded-br-xl" />
-
-                                    {/* Scanning Laser */}
-                                    <div className="absolute left-0 right-0 h-0.5 bg-accent-red shadow-[0_0_15px_rgba(244,63,94,1)] animate-[scan_2s_ease-in-out_infinite]" />
-                                </div>
-
-                                <p className="absolute bottom-20 text-white font-bold bg-black/60 px-4 py-2 rounded-xl text-sm animate-pulse">
-                                    Looking for barcode...
-                                </p>
+                            <div className="flex-1 mt-16 p-4">
+                                <div id="reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-navy-600/30 bg-navy-900 shadow-2xl"></div>
                             </div>
 
-                            {/* Hidden style for scan animation */}
-                            <style>{`
-                                @keyframes scan {
-                                    0% { top: 10%; }
-                                    50% { top: 90%; }
-                                    100% { top: 10%; }
-                                }
-                            `}</style>
+                            <p className="text-slate-400 text-center text-xs pb-4 px-8">Point your camera at a food barcode to automatically search OpenFoodFacts.</p>
 
-                            {/* Mock the scan resolution after 2.5s */}
                             {React.useEffect(() => {
-                                const timer = setTimeout(() => {
-                                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Haptic feedback
-                                    setShowScanner(false);
-                                    setSearchQuery('Quaker Oats');
-                                    setShowSearch(true);
-                                    // Auto trigger search shortly after the modal opens
-                                    setTimeout(() => {
-                                        const searchInput = document.getElementById('search-input');
-                                        if (searchInput) searchInput.focus();
-                                    }, 300);
-                                }, 2500);
-                                return () => clearTimeout(timer);
-                            }, [])}
+                                let scanner = null;
+                                if (showScanner) {
+                                    scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 });
+                                    scanner.render((decodedText) => {
+                                        scanner.clear();
+                                        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                                        doBarcodeSearch(decodedText);
+                                    }, (error) => {
+                                        // Ignore continuous scanning errors
+                                    });
+                                }
+                                return () => {
+                                    if (scanner) {
+                                        scanner.clear().catch(e => console.error("Failed to clear scanner", e));
+                                    }
+                                };
+                            }, [showScanner, doBarcodeSearch])}
                         </div>
                     )}
                 </div>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     CalendarDays, Apple, Activity, Flame, Radio, Scale, Droplets,
-    TrendingDown, TrendingUp, Target, Dumbbell, Heart, Move, Bed, Printer
+    TrendingDown, TrendingUp, Target, Dumbbell, Heart, Move, Bed, Printer, Share2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { formatDate, estimateCaloriesBurned } from '../../utils/helpers';
@@ -98,9 +98,16 @@ const ReportTab = () => {
                             7 Day Summary <span className="opacity-70 normal-case ml-1">({formatDate(last7Days[6])} - {formatDate(last7Days[0])})</span>
                         </p>
                         <div className="flex gap-1.5 print:hidden">
+                            <button onClick={() => {
+                                const text = encodeURIComponent(`Check out my 7-day fitness summary!\nCalories: ${averages.calAvg} kcal/day\nWorkouts: ${averages.workoutDays} days\nWeight: ${averages.currentWeight}kg`);
+                                window.open(`https://wa.me/?text=${text}`, '_blank');
+                            }}
+                                className="bg-green-500/20 text-green-300 hover:bg-green-500/30 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5" title="Share to WhatsApp">
+                                <Share2 className="w-3.5 h-3.5" /> <span className="hidden sm:inline">WhatsApp</span>
+                            </button>
                             <button onClick={() => window.print()}
-                                className="bg-white/10 hover:bg-white/20 p-1.5 rounded-lg text-xs font-bold transition-colors" title="Export PDF">
-                                <Printer className="w-3.5 h-3.5" />
+                                className="bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-1.5" title="Export PDF">
+                                <Printer className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Export PDF</span>
                             </button>
                             <button onClick={() => setWeekOffset(w => w + 1)}
                                 className="bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg text-xs font-bold transition-colors">← Prev</button>

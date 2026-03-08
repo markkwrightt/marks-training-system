@@ -557,7 +557,7 @@ const ActiveSession = () => {
                                                 {item.timerRunning ? (
                                                     <span className="timer-display">{formatTimer(item.timerSeconds)}</span>
                                                 ) : (
-                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                    <div className="flex flex-col gap-1 mt-1">
                                                         {prevLog && !item.completed && (
                                                             <p className="text-[10px] text-accent-green/60 font-bold flex items-center gap-1">
                                                                 <TrendingUp className="w-3 h-3" /> Last: {prevLog.value}{ex.unit} {prevLog.reps ? `× ${prevLog.reps}` : ''} RPE: {prevLog.rpe || '?'}
@@ -565,7 +565,7 @@ const ActiveSession = () => {
                                                         )}
                                                         {itemE1RM && !item.completed && (
                                                             <span className="text-[10px] text-accent-purple font-bold">
-                                                                e1RM: {itemE1RM}kg
+                                                                Est. 1RM (1 Rep Max): {itemE1RM}kg
                                                             </span>
                                                         )}
                                                     </div>

@@ -60,7 +60,7 @@ const BodyDiagram = ({ segLean = {}, segFat = {}, mode = 'lean' }) => {
 };
 
 const BodyTab = () => {
-    const { metrics, addMetric, deleteMetric, settings, sleepLogs, addSleepLog, deleteSleepLog } = useApp();
+    const { metrics, addMetric, deleteMetric, settings } = useApp();
     const [subTab, setSubTab] = useState('log');
     const [analyticFilter, setAnalyticFilter] = useState('ALL');
     const [showForm, setShowForm] = useState(false);
@@ -71,21 +71,6 @@ const BodyTab = () => {
         segLeanLArm: '', segLeanRArm: '', segLeanTrunk: '', segLeanLLeg: '', segLeanRLeg: '',
         segFatLArm: '', segFatRArm: '', segFatTrunk: '', segFatLLeg: '', segFatRLeg: '',
     });
-
-    const [showSleepForm, setShowSleepForm] = useState(false);
-    const [sleepForm, setSleepForm] = useState({ date: getToday(), hours: 8, quality: 3 });
-
-    const handleSaveSleep = (e) => {
-        e.preventDefault();
-        if (!sleepForm.hours) return;
-        addSleepLog({
-            date: sleepForm.date,
-            hours: parseFloat(sleepForm.hours),
-            quality: parseInt(sleepForm.quality)
-        });
-        setSleepForm({ date: getToday(), hours: 8, quality: 3 });
-        setShowSleepForm(false);
-    };
 
     const updateForm = (key, value) => {
         const newForm = { ...form, [key]: value };
@@ -166,64 +151,6 @@ const BodyTab = () => {
             {/* ── OVERVIEW TAB ── */}
             {subTab === 'log' && (
                 <div className="space-y-5">
-                    {/* Sleep Tracking Card */}
-                    <div className="card-elevated">
-                        <SectionHeader icon={Bed} title="Sleep Tracking" iconColor="text-indigo-400" />
-                        {!showSleepForm ? (
-                            <button onClick={() => setShowSleepForm(true)} className="btn-ghost w-full">
-                                <PlusCircle className="w-4 h-4 mr-2" /> Log Sleep
-                            </button>
-                        ) : (
-                            <form onSubmit={handleSaveSleep} className="space-y-3 animate-fade-in mt-2 border-t border-navy-600/30 pt-3">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="section-label">Date</label>
-                                        <input type="date" value={sleepForm.date} onChange={e => setSleepForm({ ...sleepForm, date: e.target.value })} className="input" required />
-                                    </div>
-                                    <div>
-                                        <label className="section-label">Hours</label>
-                                        <input type="number" step="0.5" value={sleepForm.hours} onChange={e => setSleepForm({ ...sleepForm, hours: e.target.value })} className="input" required />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="section-label text-center block mb-2">Quality (1-5)</label>
-                                    <div className="flex justify-between gap-1">
-                                        {[1, 2, 3, 4, 5].map(q => (
-                                            <button key={q} type="button" onClick={() => setSleepForm({ ...sleepForm, quality: q })}
-                                                className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-colors ${sleepForm.quality === q ? 'bg-indigo-500 text-white' : 'bg-navy-900 text-slate-500'}`}>
-                                                {q}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="flex gap-2 pt-2">
-                                    <button type="button" onClick={() => setShowSleepForm(false)} className="btn-ghost flex-1">Cancel</button>
-                                    <button type="submit" className="btn-primary flex-1 font-black !bg-indigo-500 hover:!bg-indigo-400 text-white">Save Sleep</button>
-                                </div>
-                            </form>
-                        )}
-
-                        {/* Recent Sleep Mini-Trend */}
-                        {sleepLogs && sleepLogs.length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-navy-600/30">
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 text-center">Recent Sleep</p>
-                                <div className="flex items-end justify-between h-16 gap-1">
-                                    {sleepLogs.slice(0, 7).reverse().map(log => (
-                                        <div key={log.date} className="flex-1 flex flex-col justify-end items-center group relative cursor-pointer" onClick={() => { if (window.confirm('Delete sleep log?')) deleteSleepLog(log.date); }}>
-                                            <div className="text-[8px] text-slate-500 mb-1 opacity-0 group-hover:opacity-100 absolute -top-4">{log.hours}h</div>
-                                            <div className="w-full rounded-t-md transition-all duration-300"
-                                                style={{
-                                                    height: `${Math.min(100, (log.hours / 10) * 100)}%`,
-                                                    backgroundColor: log.quality >= 4 ? '#10b981' : log.quality >= 3 ? '#3b82f6' : '#f43f5e'
-                                                }}
-                                            />
-                                            <div className="text-[7px] text-slate-600 mt-1">{log.date.substring(5)}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
 
                     {/* Latest Scan Summary */}
                     {latestMetric && (
