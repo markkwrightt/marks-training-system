@@ -565,15 +565,15 @@ const NutritionTab = () => {
                     {/* Barcode Scanner Modal */}
                     {showScanner && (
                         <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in">
-                            <div className="p-4 flex justify-between items-center bg-black/80 absolute top-0 w-full z-10 border-b border-navy-600/30">
-                                <h3 className="text-white font-bold text-base flex items-center gap-2"><Barcode className="w-5 h-5 text-accent-red" /> Scan Barcode</h3>
-                                <div className="flex items-center gap-2">
+                            <div className="p-4 flex justify-between items-center bg-navy-900/95 absolute top-0 w-full z-10 border-b border-navy-600/30 safe-area-top">
+                                <h3 className="text-white font-bold text-sm flex items-center gap-2"><Barcode className="w-4 h-4 text-accent-red" /> Scan</h3>
+                                <div className="flex items-center gap-3">
                                     <button onClick={flipCamera}
-                                        className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white transition-colors">
-                                        <RefreshCw className="w-3.5 h-3.5" />
-                                        {cameraFacing === 'environment' ? 'Rear' : 'Front'}
+                                        className="flex items-center gap-1.5 bg-accent-blue/20 hover:bg-accent-blue/30 border border-accent-blue/30 px-3 py-2 rounded-xl text-xs font-bold text-accent-blue transition-colors">
+                                        <RefreshCw className="w-4 h-4" />
+                                        {cameraFacing === 'environment' ? 'Rear Cam' : 'Front Cam'}
                                     </button>
-                                    <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-6 h-6 text-white" /></button>
+                                    <button onClick={() => setShowScanner(false)} className="bg-accent-red/20 hover:bg-accent-red/30 border border-accent-red/30 p-2 rounded-xl transition-colors"><X className="w-5 h-5 text-accent-red" /></button>
                                 </div>
                             </div>
 

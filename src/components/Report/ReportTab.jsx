@@ -17,28 +17,15 @@ const ReportTab = () => {
     const captureReport = useCallback(async () => {
         if (!reportRef.current) return null;
         const el = reportRef.current;
-        // Save originals
         const origPb = el.style.paddingBottom;
-        const origW = el.style.width;
-        const origMaxW = el.style.maxWidth;
-        const origPos = el.style.position;
-        // Constrain to mobile-like width for consistent captures
         el.style.paddingBottom = '16px';
-        el.style.width = '390px';
-        el.style.maxWidth = '390px';
         const canvas = await html2canvas(el, {
             backgroundColor: '#0a0e1a',
             scale: 3,
             useCORS: true,
             logging: false,
-            width: 390,
-            windowWidth: 390,
         });
-        // Restore
         el.style.paddingBottom = origPb;
-        el.style.width = origW;
-        el.style.maxWidth = origMaxW;
-        el.style.position = origPos;
         return canvas;
     }, []);
 
@@ -48,10 +35,8 @@ const ReportTab = () => {
             const canvas = await captureReport();
             if (!canvas) return;
             const imgData = canvas.toDataURL('image/png', 1.0);
-            // Map canvas pixels back to logical points at the capture scale
-            const scale = 3;
-            const pxW = canvas.width / scale;
-            const pxH = canvas.height / scale;
+            const pxW = canvas.width / 3;
+            const pxH = canvas.height / 3;
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pxW, pxH] });
             pdf.addImage(imgData, 'PNG', 0, 0, pxW, pxH);
             pdf.save(`fitness-report-${new Date().toISOString().split('T')[0]}.pdf`);
