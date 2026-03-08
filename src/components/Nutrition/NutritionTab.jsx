@@ -192,6 +192,25 @@ const NutritionTab = () => {
         return filterByTime(sorted, 'date', trendFilter).map(d => ({ ...d, date: d.date.substring(5) }));
     }, [nutritionLogs, calculateDailyBurn, trendFilter]);
 
+    React.useEffect(() => {
+        let scanner = null;
+        if (showScanner) {
+            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 });
+            scanner.render((decodedText) => {
+                scanner.clear();
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                doBarcodeSearch(decodedText);
+            }, (error) => {
+                // Ignore continuous scanning errors
+            });
+        }
+        return () => {
+            if (scanner) {
+                scanner.clear().catch(e => console.error("Failed to clear scanner", e));
+            }
+        };
+    }, [showScanner, doBarcodeSearch]);
+
     return (
         <div className="pb-24 animate-fade-in">
             <div className="tab-bar mb-5">
@@ -516,25 +535,6 @@ const NutritionTab = () => {
                             </div>
 
                             <p className="text-slate-400 text-center text-xs pb-4 px-8">Point your camera at a food barcode to automatically search OpenFoodFacts.</p>
-
-                            {React.useEffect(() => {
-                                let scanner = null;
-                                if (showScanner) {
-                                    scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 });
-                                    scanner.render((decodedText) => {
-                                        scanner.clear();
-                                        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-                                        doBarcodeSearch(decodedText);
-                                    }, (error) => {
-                                        // Ignore continuous scanning errors
-                                    });
-                                }
-                                return () => {
-                                    if (scanner) {
-                                        scanner.clear().catch(e => console.error("Failed to clear scanner", e));
-                                    }
-                                };
-                            }, [showScanner, doBarcodeSearch])}
                         </div>
                     )}
                 </div>
