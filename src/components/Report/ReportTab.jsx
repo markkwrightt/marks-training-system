@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { formatDate, estimateCaloriesBurned } from '../../utils/helpers';
-import html2canvas from 'html2canvas';
+import { toPng, toBlob } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 const ReportTab = () => {
@@ -14,82 +14,53 @@ const ReportTab = () => {
     const [exporting, setExporting] = useState(false);
     const reportRef = useRef(null);
 
-    const captureReport = useCallback(async () => {
+    const getExportOptions = useCallback(() => {
         if (!reportRef.current) return null;
         const el = reportRef.current;
-        const origPb = el.style.paddingBottom;
-        el.style.paddingBottom = '16px';
-
-        const w = el.offsetWidth;
-        const dpr = window.devicePixelRatio || 1;
-        const captureScale = Math.max(dpr * 2, 4);
-
-        const canvas = await html2canvas(el, {
-            backgroundColor: '#0a0e1a',
-            scale: captureScale,
-            useCORS: true,
-            logging: false,
-            width: w,
-            scrollX: 0,
-            scrollY: 0,
-            x: 0,
-            y: 0,
-            onclone: (clonedDoc) => {
-                // Boost semi-transparent backgrounds to be opaque for vivid colors
-                const allEls = clonedDoc.querySelectorAll('*');
-                allEls.forEach(node => {
-                    const cs = clonedDoc.defaultView.getComputedStyle(node);
-                    const bg = cs.backgroundColor;
-                    // Convert rgba with low alpha to higher alpha
-                    if (bg && bg.startsWith('rgba')) {
-                        const match = bg.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
-                        if (match) {
-                            const [, r, g, b, a] = match;
-                            const alpha = parseFloat(a);
-                            if (alpha > 0 && alpha < 1) {
-                                // Boost alpha: map 0.1->0.4, 0.2->0.6, 0.5->0.8 etc.
-                                const boosted = Math.min(1, alpha * 2.5);
-                                node.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${boosted})`;
-                            }
-                        }
-                    }
-                    // Remove backdrop-filter which html2canvas can't render
-                    if (cs.backdropFilter && cs.backdropFilter !== 'none') {
-                        node.style.backdropFilter = 'none';
-                        node.style.webkitBackdropFilter = 'none';
-                    }
-                });
+        const pixelRatio = Math.max(window.devicePixelRatio || 1, 2);
+        return {
+            node: el,
+            opts: {
+                pixelRatio,
+                backgroundColor: '#0a0e1a',
+                style: { paddingBottom: '16px' },
+                filter: (node) => {
+                    // Hide the button row from export
+                    if (node.classList && node.classList.contains('print:hidden')) return false;
+                    return true;
+                },
             }
-        });
-        el.style.paddingBottom = origPb;
-        return canvas;
+        };
     }, []);
 
     const handleExportPDF = useCallback(async () => {
         setExporting(true);
         try {
-            const canvas = await captureReport();
-            if (!canvas) return;
-            const imgData = canvas.toDataURL('image/png', 1.0);
-            // Use actual element width for PDF page size
-            const pdfW = reportRef.current?.offsetWidth || canvas.width / 4;
-            const pdfH = (canvas.height / canvas.width) * pdfW;
+            const config = getExportOptions();
+            if (!config) return;
+            const dataUrl = await toPng(config.node, config.opts);
+            // Load as image to get dimensions
+            const img = new Image();
+            img.src = dataUrl;
+            await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+            const pdfW = config.node.offsetWidth;
+            const pdfH = (img.height / img.width) * pdfW;
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pdfW, pdfH] });
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
+            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
             pdf.save(`fitness-report-${new Date().toISOString().split('T')[0]}.pdf`);
         } catch (err) {
             console.error('PDF export failed:', err);
             alert('Failed to export PDF. Please try again.');
         }
         setExporting(false);
-    }, [captureReport]);
+    }, [getExportOptions]);
 
     const handleShareWhatsApp = useCallback(async () => {
         setExporting(true);
         try {
-            const canvas = await captureReport();
-            if (!canvas) return;
-            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const config = getExportOptions();
+            if (!config) return;
+            const blob = await toBlob(config.node, config.opts);
             const file = new File([blob], `fitness-report-${new Date().toISOString().split('T')[0]}.png`, { type: 'image/png' });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -115,7 +86,7 @@ const ReportTab = () => {
             }
         }
         setExporting(false);
-    }, [captureReport]);
+    }, [getExportOptions]);
 
     const last7Days = useMemo(() => {
         const days = [];
