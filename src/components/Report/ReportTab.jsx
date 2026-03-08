@@ -17,13 +17,23 @@ const ReportTab = () => {
     const captureReport = useCallback(async () => {
         if (!reportRef.current) return null;
         const el = reportRef.current;
+        // Save and override padding
         const origPb = el.style.paddingBottom;
         el.style.paddingBottom = '16px';
+
+        // Force layout recalc
+        const w = el.offsetWidth;
+
         const canvas = await html2canvas(el, {
             backgroundColor: '#0a0e1a',
             scale: 3,
             useCORS: true,
             logging: false,
+            width: w,
+            scrollX: 0,
+            scrollY: 0,
+            x: 0,
+            y: 0,
         });
         el.style.paddingBottom = origPb;
         return canvas;
