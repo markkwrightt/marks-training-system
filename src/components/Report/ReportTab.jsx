@@ -104,18 +104,39 @@ const ReportTab = () => {
             text += `\u{1F4CB} *DAILY LOG:*\n`;
             text += `\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n`;
 
-            dailyData.forEach(d => {
-                text += `\n\u{1F4C5} *${formatDate(d.dateStr)}*`;
-                if (d.dayMetric?.weight) text += ` (${d.dayMetric.weight}kg)`;
-                text += d.hasWorkout ? ' \u2705\n' : ' \u{1F634}\n';
+            last7Days.forEach(dateStr => {
+                const dayNut = nutritionLogs.filter(n => n.date === dateStr);
+                const dayCals = dayNut.reduce((a, c) => a + c.calories, 0);
+                const dayPro = dayNut.reduce((a, c) => a + c.protein, 0);
+                const dayCarbs = dayNut.reduce((a, c) => a + c.carbs, 0);
+                const dayFat = dayNut.reduce((a, c) => a + c.fat, 0);
+                const dayWorkouts = logs.filter(l => l.date === dateStr);
+                const dayMetric = metrics.find(m => m.date === dateStr);
+                const dayBurn = calculateDailyBurn(dateStr);
 
-                if (d.dayCals > 0) {
-                    text += `  \u{1F34E} ${d.dayCals} cal | P:${d.dayPro}g C:${d.dayCarbs}g F:${d.dayFat}g\n`;
-                    text += `  \u{1F525} Burned: ${d.dayBurn} | Net: ${d.dayCals - d.dayBurn}\n`;
+                text += `\n\u{1F4C5} *${formatDate(dateStr)}*`;
+                if (dayMetric?.weight) text += ` (${dayMetric.weight}kg)`;
+                text += dayWorkouts.length > 0 ? ' \u2705\n' : ' \u{1F634}\n';
+
+                if (dayCals > 0) {
+                    text += `  \u{1F34E} ${dayCals} cal | P:${dayPro}g C:${dayCarbs}g F:${dayFat}g\n`;
+                    text += `  \u{1F525} Burned: ${dayBurn} | Net: ${dayCals - dayBurn}\n`;
                 }
 
-                if (d.hasWorkout) {
-                    Object.values(d.grouped).forEach(g => {
+                if (dayWorkouts.length > 0) {
+                    const grouped = dayWorkouts.reduce((acc, log) => {
+                        const ex = exercises.find(e => e.id === log.exerciseId);
+                        if (!ex) return acc;
+                        if (!acc[log.exerciseId]) acc[log.exerciseId] = { count: 0, ex, bestValue: 0, bestReps: '', maxRpe: 0 };
+                        acc[log.exerciseId].count++;
+                        if (log.value > acc[log.exerciseId].bestValue) {
+                            acc[log.exerciseId].bestValue = log.value || 0;
+                            acc[log.exerciseId].bestReps = log.reps || '';
+                        }
+                        acc[log.exerciseId].maxRpe = Math.max(acc[log.exerciseId].maxRpe, log.rpe || 0);
+                        return acc;
+                    }, {});
+                    Object.values(grouped).forEach(g => {
                         text += `  \u{1F4AA} ${g.count}\u00D7 ${g.ex.name} \u2192 ${g.bestValue} ${g.ex.unit}`;
                         if (g.bestReps) text += ` \u00D7 ${g.bestReps}`;
                         if (g.maxRpe > 0) text += ` (RPE ${g.maxRpe})`;
@@ -138,7 +159,7 @@ const ReportTab = () => {
             }
         }
         setExporting(false);
-    }, [averages, dailyData, last7Days]);
+    }, [averages, last7Days, nutritionLogs, logs, metrics, exercises, calculateDailyBurn]);
 
     return (
         <div className="space-y-5 pb-24 animate-fade-in" ref={reportRef}>

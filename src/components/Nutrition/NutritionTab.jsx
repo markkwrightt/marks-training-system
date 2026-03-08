@@ -78,15 +78,16 @@ const NutritionTab = () => {
     const foodLibrary = useMemo(() => {
         const seen = {};
         nutritionLogs.forEach(l => {
-            const key = `${l.name}|${l.brand || ''}`;
+            const key = `${l.name}|${l.brand || ''}|${l.mealType || 'snack'}`;
             if (!seen[key]) {
-                seen[key] = { name: l.name, brand: l.brand || '', calories: l.calories, protein: l.protein, carbs: l.carbs, fat: l.fat, count: 1 };
+                seen[key] = { name: l.name, brand: l.brand || '', calories: l.calories, protein: l.protein, carbs: l.carbs, fat: l.fat, count: 1, mealType: l.mealType || 'snack' };
             } else {
                 seen[key].count++;
             }
         });
-        return Object.values(seen).sort((a, b) => b.count - a.count);
-    }, [nutritionLogs]);
+        const all = Object.values(seen).sort((a, b) => b.count - a.count);
+        return all.filter(f => f.mealType === activeMealType);
+    }, [nutritionLogs, activeMealType]);
 
     // OpenFoodFacts search
     const doSearch = useCallback(async () => {
