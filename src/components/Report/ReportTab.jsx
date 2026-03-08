@@ -17,16 +17,16 @@ const ReportTab = () => {
     const captureReport = useCallback(async () => {
         if (!reportRef.current) return null;
         const el = reportRef.current;
-        // Save and override padding
         const origPb = el.style.paddingBottom;
         el.style.paddingBottom = '16px';
 
-        // Force layout recalc
         const w = el.offsetWidth;
+        const dpr = window.devicePixelRatio || 1;
+        const captureScale = Math.max(dpr * 2, 4);
 
         const canvas = await html2canvas(el, {
             backgroundColor: '#0a0e1a',
-            scale: 3,
+            scale: captureScale,
             useCORS: true,
             logging: false,
             width: w,
@@ -34,6 +34,32 @@ const ReportTab = () => {
             scrollY: 0,
             x: 0,
             y: 0,
+            onclone: (clonedDoc) => {
+                // Boost semi-transparent backgrounds to be opaque for vivid colors
+                const allEls = clonedDoc.querySelectorAll('*');
+                allEls.forEach(node => {
+                    const cs = clonedDoc.defaultView.getComputedStyle(node);
+                    const bg = cs.backgroundColor;
+                    // Convert rgba with low alpha to higher alpha
+                    if (bg && bg.startsWith('rgba')) {
+                        const match = bg.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+                        if (match) {
+                            const [, r, g, b, a] = match;
+                            const alpha = parseFloat(a);
+                            if (alpha > 0 && alpha < 1) {
+                                // Boost alpha: map 0.1->0.4, 0.2->0.6, 0.5->0.8 etc.
+                                const boosted = Math.min(1, alpha * 2.5);
+                                node.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${boosted})`;
+                            }
+                        }
+                    }
+                    // Remove backdrop-filter which html2canvas can't render
+                    if (cs.backdropFilter && cs.backdropFilter !== 'none') {
+                        node.style.backdropFilter = 'none';
+                        node.style.webkitBackdropFilter = 'none';
+                    }
+                });
+            }
         });
         el.style.paddingBottom = origPb;
         return canvas;
@@ -45,10 +71,11 @@ const ReportTab = () => {
             const canvas = await captureReport();
             if (!canvas) return;
             const imgData = canvas.toDataURL('image/png', 1.0);
-            const pxW = canvas.width / 3;
-            const pxH = canvas.height / 3;
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pxW, pxH] });
-            pdf.addImage(imgData, 'PNG', 0, 0, pxW, pxH);
+            // Use actual element width for PDF page size
+            const pdfW = reportRef.current?.offsetWidth || canvas.width / 4;
+            const pdfH = (canvas.height / canvas.width) * pdfW;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pdfW, pdfH] });
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfW, pdfH);
             pdf.save(`fitness-report-${new Date().toISOString().split('T')[0]}.pdf`);
         } catch (err) {
             console.error('PDF export failed:', err);
