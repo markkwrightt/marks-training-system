@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Apple, Search, Plus, Trash2, Coffee, Utensils, Cookie, Drumstick, Droplets,
-    Minus, Clock, X, BookOpen, Save, Copy, Barcode
+    Minus, Clock, X, BookOpen, Save, Copy, Barcode, RefreshCw
 } from 'lucide-react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -31,6 +31,9 @@ const NutritionTab = () => {
     const [showLibrary, setShowLibrary] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const scannerRef = useRef(null);
+    const [cameraFacing, setCameraFacing] = useState(() => {
+        return localStorage.getItem('mts_camera_facing') || 'environment';
+    });
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -202,7 +205,7 @@ const NutritionTab = () => {
 
         const startScanner = async () => {
             // Wait a tick for the DOM element to render
-            await new Promise(r => setTimeout(r, 100));
+            await new Promise(r => setTimeout(r, 150));
             if (stopped) return;
 
             const readerEl = document.getElementById('reader');
@@ -213,7 +216,7 @@ const NutritionTab = () => {
 
             try {
                 await html5Qrcode.start(
-                    { facingMode: 'environment' },
+                    { facingMode: cameraFacing },
                     { fps: 10, qrbox: { width: 250, height: 150 } },
                     (decodedText) => {
                         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
@@ -239,7 +242,14 @@ const NutritionTab = () => {
                 scannerRef.current = null;
             }
         };
-    }, [showScanner, doBarcodeSearch]);
+    }, [showScanner, doBarcodeSearch, cameraFacing]);
+
+    const flipCamera = useCallback(() => {
+        const next = cameraFacing === 'environment' ? 'user' : 'environment';
+        localStorage.setItem('mts_camera_facing', next);
+        setCameraFacing(next);
+        // The useEffect will automatically restart the scanner with the new facing mode
+    }, [cameraFacing]);
 
     return (
         <div className="pb-24 animate-fade-in">
@@ -555,16 +565,23 @@ const NutritionTab = () => {
                     {/* Barcode Scanner Modal */}
                     {showScanner && (
                         <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in">
-                            <div className="p-5 flex justify-between items-center bg-black/80 absolute top-0 w-full z-10 border-b border-navy-600/30">
-                                <h3 className="text-white font-bold text-lg flex items-center gap-2"><Barcode className="w-5 h-5 text-accent-red" /> Scan Barcode</h3>
-                                <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-6 h-6 text-white" /></button>
+                            <div className="p-4 flex justify-between items-center bg-black/80 absolute top-0 w-full z-10 border-b border-navy-600/30">
+                                <h3 className="text-white font-bold text-base flex items-center gap-2"><Barcode className="w-5 h-5 text-accent-red" /> Scan Barcode</h3>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={flipCamera}
+                                        className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl text-[10px] font-bold text-white transition-colors">
+                                        <RefreshCw className="w-3.5 h-3.5" />
+                                        {cameraFacing === 'environment' ? 'Rear' : 'Front'}
+                                    </button>
+                                    <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-6 h-6 text-white" /></button>
+                                </div>
                             </div>
 
-                            <div className="flex-1 mt-16 p-4 flex items-center justify-center">
-                                <div id="reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-navy-600/30 bg-navy-900 shadow-2xl" style={{ minHeight: '280px' }}></div>
+                            <div className="flex-1 mt-14 p-3 flex items-center justify-center">
+                                <div id="reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-navy-600/30 bg-navy-900 shadow-2xl" style={{ minHeight: '300px' }}></div>
                             </div>
 
-                            <p className="text-slate-400 text-center text-xs pb-6 px-8">Point your camera at a food barcode to automatically search OpenFoodFacts.</p>
+                            <p className="text-slate-400 text-center text-xs pb-4 px-8">Point your camera at a food barcode to search OpenFoodFacts.</p>
                         </div>
                     )}
                 </div>
