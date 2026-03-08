@@ -16,12 +16,19 @@ const ReportTab = () => {
 
     const captureReport = useCallback(async () => {
         if (!reportRef.current) return null;
-        return await html2canvas(reportRef.current, {
+        // Temporarily remove pb-24 so there's no huge gap at the bottom
+        const el = reportRef.current;
+        const origPb = el.style.paddingBottom;
+        el.style.paddingBottom = '16px';
+        const canvas = await html2canvas(el, {
             backgroundColor: '#0a0e1a',
-            scale: 2,
+            scale: 4,
             useCORS: true,
             logging: false,
+            allowTaint: true,
         });
+        el.style.paddingBottom = origPb;
+        return canvas;
     }, []);
 
     const handleExportPDF = useCallback(async () => {
@@ -29,9 +36,11 @@ const ReportTab = () => {
         try {
             const canvas = await captureReport();
             if (!canvas) return;
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
-            pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+            const imgData = canvas.toDataURL('image/png', 1.0);
+            const pxW = canvas.width / 4;
+            const pxH = canvas.height / 4;
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pxW, pxH] });
+            pdf.addImage(imgData, 'PNG', 0, 0, pxW, pxH, undefined, 'FAST');
             pdf.save(`fitness-report-${new Date().toISOString().split('T')[0]}.pdf`);
         } catch (err) {
             console.error('PDF export failed:', err);

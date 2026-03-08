@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     Apple, Search, Plus, Trash2, Coffee, Utensils, Cookie, Drumstick, Droplets,
     Minus, Clock, X, BookOpen, Save, Copy, Barcode
@@ -9,7 +9,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { getToday, generateId, filterByTime, calculateTDEE } from '../../utils/helpers';
 import { TimeFilter, SectionHeader, MacroBar } from '../ui/SharedComponents';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const tooltipStyle = {
     contentStyle: { background: '#111827', border: '1px solid #243049', borderRadius: '12px', fontSize: '12px', color: '#e2e8f0' }
@@ -30,6 +30,7 @@ const NutritionTab = () => {
     const [showManual, setShowManual] = useState(false);
     const [showLibrary, setShowLibrary] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
+    const scannerRef = useRef(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
@@ -192,21 +193,50 @@ const NutritionTab = () => {
         return filterByTime(sorted, 'date', trendFilter).map(d => ({ ...d, date: d.date.substring(5) }));
     }, [nutritionLogs, calculateDailyBurn, trendFilter]);
 
-    React.useEffect(() => {
-        let scanner = null;
-        if (showScanner) {
-            scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 });
-            scanner.render((decodedText) => {
-                scanner.clear();
-                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-                doBarcodeSearch(decodedText);
-            }, (error) => {
-                // Ignore continuous scanning errors
-            });
-        }
+    // Barcode scanner effect — uses Html5Qrcode directly for more control
+    useEffect(() => {
+        if (!showScanner) return;
+
+        let html5Qrcode = null;
+        let stopped = false;
+
+        const startScanner = async () => {
+            // Wait a tick for the DOM element to render
+            await new Promise(r => setTimeout(r, 100));
+            if (stopped) return;
+
+            const readerEl = document.getElementById('reader');
+            if (!readerEl) return;
+
+            html5Qrcode = new Html5Qrcode('reader');
+            scannerRef.current = html5Qrcode;
+
+            try {
+                await html5Qrcode.start(
+                    { facingMode: 'environment' },
+                    { fps: 10, qrbox: { width: 250, height: 150 } },
+                    (decodedText) => {
+                        if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                        html5Qrcode.stop().catch(() => { });
+                        scannerRef.current = null;
+                        doBarcodeSearch(decodedText);
+                    },
+                    () => { /* ignore scan errors */ }
+                );
+            } catch (err) {
+                console.error('Camera start failed:', err);
+                setShowScanner(false);
+                alert('Could not access camera. Please check permissions.');
+            }
+        };
+
+        startScanner();
+
         return () => {
-            if (scanner) {
-                scanner.clear().catch(e => console.error("Failed to clear scanner", e));
+            stopped = true;
+            if (scannerRef.current) {
+                scannerRef.current.stop().catch(() => { });
+                scannerRef.current = null;
             }
         };
     }, [showScanner, doBarcodeSearch]);
@@ -524,17 +554,17 @@ const NutritionTab = () => {
 
                     {/* Barcode Scanner Modal */}
                     {showScanner && (
-                        <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in pb-10">
+                        <div className="fixed inset-0 bg-black z-50 flex flex-col animate-fade-in">
                             <div className="p-5 flex justify-between items-center bg-black/80 absolute top-0 w-full z-10 border-b border-navy-600/30">
                                 <h3 className="text-white font-bold text-lg flex items-center gap-2"><Barcode className="w-5 h-5 text-accent-red" /> Scan Barcode</h3>
                                 <button onClick={() => setShowScanner(false)} className="btn-icon"><X className="w-6 h-6 text-white" /></button>
                             </div>
 
-                            <div className="flex-1 mt-16 p-4">
-                                <div id="reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-navy-600/30 bg-navy-900 shadow-2xl"></div>
+                            <div className="flex-1 mt-16 p-4 flex items-center justify-center">
+                                <div id="reader" className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-navy-600/30 bg-navy-900 shadow-2xl" style={{ minHeight: '280px' }}></div>
                             </div>
 
-                            <p className="text-slate-400 text-center text-xs pb-4 px-8">Point your camera at a food barcode to automatically search OpenFoodFacts.</p>
+                            <p className="text-slate-400 text-center text-xs pb-6 px-8">Point your camera at a food barcode to automatically search OpenFoodFacts.</p>
                         </div>
                     )}
                 </div>
